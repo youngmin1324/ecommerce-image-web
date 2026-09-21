@@ -58,7 +58,7 @@ header .sub { color: var(--ink-soft); font-size: 13px; }
 .panel + .panel { margin-top: 16px; }
 fieldset { border: 0; margin: 0 0 14px; }
 label.top { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; letter-spacing: 0.01em; }
-input[type=text], input[type=password], textarea, select {
+input[type=text], input[type=password], input[type=email], textarea, select {
   width: 100%;
   background: var(--field);
   color: var(--ink);
@@ -152,12 +152,27 @@ img.zoom { cursor: zoom-in; }
 .plrow .plbody { margin-top: 6px; }
 .plrow .plbody pre { margin: 4px 0; }
 .plrow .plbody .mini { margin-right: 6px; }
+.plpick { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.plpick select { flex: 1; min-width: 0; padding: 6px 8px; font-size: 12.5px; }
+.plpick .hint { white-space: nowrap; margin: 0; }
 .dp-concept { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 10px; }
 .dp-concept b { color: var(--ink); }
 .tag { font-weight: 500; font-size: 11.5px; color: var(--ink-soft); background: var(--field); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; margin-left: 4px; letter-spacing: 0; }
 .thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .thumb { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* product shot + optional option name underneath */
+.pthumb { width: 88px; }
+.pthumb .thumb { width: 88px; height: 88px; }
+.pthumb input { width: 100%; margin-top: 4px; padding: 4px 6px; font-size: 12px; border-radius: 6px; }
+.pthumb.tagged .thumb { border-color: var(--accent); }
+/* 주상품: 일반 섹션 이미지가 기준으로 삼는 사진 묶음 */
+.pthumb .thumb .main-btn {
+  left: 2px; right: auto; width: auto; height: 20px; padding: 0 6px; border-radius: 999px;
+  font-size: 11px; background: rgba(0,0,0,0.55); white-space: nowrap;
+}
+.pthumb .thumb .main-btn.on { background: var(--accent); }
+.pthumb.main .thumb { border-width: 2px; border-color: var(--accent); }
 .thumb button {
   position: absolute; top: 2px; right: 2px;
   width: 20px; height: 20px; line-height: 1;
@@ -294,6 +309,16 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
 .cost-pop .foot { display: flex; justify-content: flex-end; margin-top: 10px; }
 .cost-pop .foot button { font-size: 12px; padding: 4px 10px; }
 @media (max-width: 860px) { .cost { order: 5; } .cost-pop { left: 0; right: auto; } }
+.acct-email { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; word-break: break-all; }
+.acct .cost-pop { width: min(300px, calc(100vw - 32px)); }
+.acct .cost-pop .note { margin-top: 6px; }
+.acct .foot { display: flex; gap: 6px; justify-content: flex-end; }
+#authDlg fieldset { margin: 12px 0 0; }
+#authDlg .status:empty { display: none; }
+#authDlg .status { margin-top: 12px; }
+.auth-links { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.auth-links button.linklike { width: auto; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; }
+.auth-links button[hidden] { display: none; }
 </style>
 <style id="dpcss"></style>
 </head>
@@ -302,7 +327,7 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
   <header>
     <h1>이커머스 이미지 생성기</h1>
     <span class="sub">상품사진 → 대표이미지 · 착용샷 · 연출컷 · 스마트스토어 세트 · 상세페이지 (Gemini / Nano Banana)</span>
-    <span class="sub" id="buildStamp" title="이 화면이 어느 빌드인지 확인용">빌드 09-21 09:59</span>
+    <span class="sub" id="buildStamp" title="이 화면이 어느 빌드인지 확인용">빌드 09-21 13:46</span>
     <nav class="tabs" role="tablist" aria-label="작업 종류">
       <button type="button" role="tab" id="tabSingle" aria-selected="true">이미지 생성</button>
       <button type="button" role="tab" id="tabSet" aria-selected="false">스마트스토어 세트</button>
@@ -313,11 +338,23 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
       <div class="cost-pop" id="costPop" hidden>
         <div class="tot">
           <div><span>이번 세션</span><b id="costS">$0.00</b><span id="costSKrw"></span></div>
-          <div><span>누적 (이 브라우저)</span><b id="costT">$0.00</b><span id="costTKrw"></span></div>
+          <div><span id="costTLabel">누적 (이 브라우저)</span><b id="costT">$0.00</b><span id="costTKrw"></span></div>
         </div>
         <table><thead><tr><th>모델 (누적)</th><th>호출</th><th>이미지</th><th>비용</th></tr></thead><tbody id="costRows"></tbody></table>
         <div class="note" id="costNote"></div>
         <div class="foot"><button type="button" id="costReset">누적 초기화</button></div>
+      </div>
+    </div>
+    <div class="cost acct" id="acct" hidden>
+      <button type="button" id="acctBtn" aria-haspopup="true" aria-expanded="false">로그인</button>
+      <div class="cost-pop" id="acctPop" hidden>
+        <div class="acct-email" id="acctEmail"></div>
+        <div class="note" id="acctSync"></div>
+        <div class="note">API 키는 내 비밀번호로 암호화해 저장합니다. 서버(운영자 포함)는 키를 볼 수 없습니다. 기록·프롬프트 로그·비용은 내 계정에서만 볼 수 있습니다.</div>
+        <div class="foot">
+          <button type="button" id="acctPw">비밀번호 변경</button>
+          <button type="button" id="acctOut">로그아웃</button>
+        </div>
       </div>
     </div>
   </header>
@@ -339,7 +376,7 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
             <input type="password" id="apikey" placeholder="AI Studio에서 발급받은 키" autocomplete="off">
             <button id="savekey" type="button">저장</button>
           </div>
-          <div class="hint">키는 이 브라우저에만 저장되고 서버로 전송되지 않습니다(localStorage). 공용 PC에서는 저장하지 마세요.</div>
+          <div class="hint" id="apikeyHint">키는 이 브라우저에만 저장되고 서버로 전송되지 않습니다(localStorage). 공용 PC에서는 저장하지 마세요.</div>
         </fieldset>
 
         <details class="advanced" style="margin-bottom:0">
@@ -407,13 +444,7 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
           <div class="drop" id="dropProduct" tabindex="0">클릭 · 드래그 · 붙여넣기(⌘V)</div>
           <input type="file" id="fileProduct" accept="image/png,image/jpeg,image/webp" multiple hidden>
           <div class="thumbs" id="thumbsProduct"></div>
-        </fieldset>
-
-        <fieldset>
-          <label class="top">옵션별 상품샷 <span class="tag">색상·종류별 일괄 생성</span></label>
-          <div id="variantList"></div>
-          <button type="button" class="mini" id="addVariant">+ 옵션 추가</button>
-          <div class="hint">옵션(예: 아이보리, 블랙)마다 상품샷을 넣으면 같은 컨셉·구도로 옵션별 이미지를 한 번에 만듭니다. 옵션이 있으면 위 '상품샷' 대신 옵션별 사진을 씁니다.</div>
+          <div class="hint">색상·종류 옵션이 있으면 사진 아래에 옵션 이름(예: 아이보리)을 적으세요(선택). 같은 이름끼리 묶여 옵션마다 같은 컨셉·구도로 한 번에 만들고, 이때는 이름을 적은 사진만 씁니다.</div>
         </fieldset>
 
         <fieldset>
@@ -526,13 +557,7 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
           <div class="drop" id="dropProduct2" tabindex="0">클릭 · 드래그 · 붙여넣기(⌘V)</div>
           <input type="file" id="fileProduct2" accept="image/png,image/jpeg,image/webp" multiple hidden>
           <div class="thumbs" id="thumbsProduct2"></div>
-          <div class="hint">'이미지 생성' 탭의 상품샷과 같은 목록입니다.</div>
-        </fieldset>
-        <fieldset>
-          <label class="top">옵션별 상품샷 <span class="tag">옵션 섹션 자동 구성</span></label>
-          <div id="variantList2"></div>
-          <button type="button" class="mini" id="addVariant2">+ 옵션 추가</button>
-          <div class="hint">색상·종류별 사진을 넣으면 '옵션' 섹션을 만들고 옵션마다 같은 구도의 이미지를 생성합니다. '이미지 생성' 탭과 같은 목록입니다.</div>
+          <div class="hint">색상·종류 옵션이 있으면 사진 아래에 옵션 이름을 적으세요(선택). '옵션' 섹션이 자동으로 생기고 옵션마다 같은 구도의 이미지를 만듭니다. 이름 없는 사진은 다른 섹션에 씁니다. '이미지 생성' 탭과 같은 목록입니다.</div>
         </fieldset>
         <fieldset>
           <label class="top">배치할 사진 <span class="tag">생성 없이 그대로 사용</span></label>
@@ -609,6 +634,10 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
           <span>프롬프트 로그 <span class="tag" id="plogScope">이미지 생성</span></span>
           <button id="plogClear" type="button" class="mini">비우기</button>
         </div>
+        <div class="plpick">
+          <select id="plogReq" aria-label="요청 선택"></select>
+          <span class="hint" id="plogReqInfo"></span>
+        </div>
         <div id="plog"></div>
       </div>
     </div>
@@ -660,6 +689,10 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
           <select id="dpPalette" aria-label="바탕색" title="바탕색">
             <option value="">흰 바탕</option>
             <option value="ref">레퍼런스 색</option>
+          </select>
+          <select id="dpTone" aria-label="톤 고정" title="켜면 세부 스타일이 페이지의 색감·무드를 흔들지 못하고, 먼저 만든 컷이 뒤 컷의 스타일 기준으로 함께 들어갑니다">
+            <option value="lock">톤 고정: 페이지 전체</option>
+            <option value="free">톤: 섹션별 자유</option>
           </select>
           <div class="accentpick">
             <span class="accentlabel">포인트 색</span>
@@ -725,9 +758,60 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
   </div>
 </dialog>
 
+<dialog id="authDlg" class="dlg" style="width:min(400px, calc(100vw - 32px))">
+  <form id="authForm" novalidate>
+    <div class="dlg-title" id="authTitle">로그인</div>
+    <div class="hint" id="authMsg"></div>
+    <fieldset id="authEmailRow">
+      <label class="top" for="authEmail">이메일</label>
+      <input type="email" id="authEmail" autocomplete="username" maxlength="254" required>
+    </fieldset>
+    <fieldset id="authPwRow">
+      <label class="top" for="authPw" id="authPwLabel">비밀번호</label>
+      <input type="password" id="authPw" autocomplete="current-password" maxlength="200">
+    </fieldset>
+    <fieldset id="authNewRow">
+      <label class="top" for="authNew" id="authNewLabel">새 비밀번호 <span class="tag">8자 이상</span></label>
+      <input type="password" id="authNew" autocomplete="new-password" maxlength="200">
+    </fieldset>
+    <fieldset id="authNew2Row">
+      <label class="top" for="authNew2">비밀번호 확인</label>
+      <input type="password" id="authNew2" autocomplete="new-password" maxlength="200">
+    </fieldset>
+    <div class="status" id="authStatus" role="status"></div>
+    <div class="auth-links" id="authLinks">
+      <button type="button" class="linklike" id="authToSignup">회원가입</button>
+      <button type="button" class="linklike" id="authToForgot">비밀번호를 잊었어요</button>
+      <button type="button" class="linklike" id="authToLogin">로그인으로 돌아가기</button>
+    </div>
+    <div class="dlg-acts">
+      <button type="button" id="authCancel">닫기</button>
+      <button type="submit" class="primary" id="authGo">로그인</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 "use strict";
 const SCENARIOS = [{"id": "hero-image", "kr": "흰배경 대표이미지", "name": "白底/纯色底产品主图", "template": {"type": "product photography", "subject": "{product_description}", "background": "clean white background", "lighting": "soft diffused studio lighting, even illumination", "composition": "centered, front view", "quality": "commercial e-commerce photography"}, "defaults": {"background": "clean white background", "lighting": "soft diffused studio lighting", "composition": "centered, front view"}, "variants": {"luxury": {"description": "하이엔드 럭셔리", "overrides": {"lighting": "Rembrandt lighting, subtle rim light", "background": "gradient from dark to light, premium feel"}}, "fresh": {"description": "산뜻한 내추럴", "overrides": {"lighting": "bright natural light", "background": "light pastel tones"}}, "tech": {"description": "테크 감성", "overrides": {"lighting": "dramatic side lighting", "background": "dark minimalist"}}, "color": {"description": "컬러 배경", "overrides": {"background": "{color} gradient background"}}, "cosmetics-packshot": {"description": "화장품 팩샷(선버스트 확정안)", "overrides": {"type": "cosmetics packshot", "subject": "{product_description}: frosted glass bottle with amber serum, water droplets on the surface", "background": "seamless pale pink backdrop", "quality": "high detail commercial product photography"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "try-on-virtual", "kr": "가상 착용/장면 합성", "name": "虚拟试穿/产品融入场景", "template": {"type": "product integration / virtual try-on", "subject": "{product_description} naturally integrated into {scene_type}", "setting": "{detailed_scene}", "atmosphere": "{mood_and_lighting}", "integration": "product prominently displayed, naturally belonging in scene", "quality": "cinematic lifestyle photography,"}, "defaults": {"setting": "luxury interior or lifestyle environment matching product", "atmosphere": "warm, inviting, aspirational", "integration": "product as natural focal point"}, "variants": {"interior-luxury": {"description": "럭셔리 실내", "overrides": {"setting": "high-end spa/hotel/luxury home, marble, gold fixtures", "atmosphere": "cinematic depth, warm grading, premium"}}, "outdoor-natural": {"description": "야외 자연", "overrides": {"setting": "natural outdoor, organic elements", "atmosphere": "golden hour sunlight, natural and free"}}, "studio-editorial": {"description": "스튜디오 에디토리얼", "overrides": {"setting": "professional studio with styled backdrop", "atmosphere": "controlled studio lighting, editorial quality"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "person"}, {"id": "model-showcase", "kr": "모델 착용/시연컷", "name": "模特展示图", "template": {"type": "editorial beauty/fashion photography", "subject": "{person_description} with {product_description}", "camera": "shot with {camera_setup}", "lighting": "natural window light creating realistic highlights", "skin_detail": "visible pores, natural skin texture, NOT retouched", "expression": "{expression_description}", "quality": "professional editorial photography,"}, "defaults": {"camera": "Canon EOS R5, 85mm f/1.4 lens", "lighting": "natural window light from left, realistic highlights", "skin_detail": "visible pores, natural under-eye shadows, slight texture unevenness", "expression": "authentic relaxed, subtle natural asymmetry"}, "variants": {"beauty-closeup": {"description": "뷰티 초근접", "overrides": {"camera": "Canon EOS R5, 100mm f/2.8 macro", "skin_detail": "incredibly detailed: pores, fine lines, freckles, NOT retouched", "expression": "eyes half-closed, peaceful self-care moment"}, "shots": "presenter"}, "fashion-full": {"description": "패션 전신", "overrides": {"camera": "Canon EOS R5, 50mm f/1.2", "expression": "confident direct gaze, editorial pose"}}, "candid": {"description": "자연스러운 스냅", "overrides": {"camera": "iPhone 15 Pro main camera", "expression": "genuine candid, mid-action", "skin_detail": "natural texture, slight blemishes, relatable"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "person"}, {"id": "lifestyle-scene", "kr": "라이프스타일 연출컷", "name": "场景化生活图", "template": {"type": "lifestyle product photography", "subject": "{product_description}", "setting": "{scene_description}", "lighting": "natural {time_of_day} light", "composition": "{composition_style}", "mood": "{mood_description}", "quality": "editorial lifestyle photography"}, "defaults": {"setting": "modern living space, clean and organized", "lighting": "natural morning light through window", "composition": "rule of thirds, product as focal point", "mood": "warm and inviting"}, "variants": {"morning": {"description": "상쾌한 아침", "overrides": {"setting": "bright room with sunlight streaming through window", "lighting": "soft morning golden light, visible dust particles", "mood": "fresh, clean, new beginning"}}, "cozy": {"description": "아늑하고 편안한", "overrides": {"setting": "warm cozy interior, soft textiles, candles", "lighting": "warm ambient lighting, soft golden tones", "mood": "comfortable, intimate"}}, "outdoor": {"description": "야외 자연", "overrides": {"setting": "outdoor natural setting, organic elements", "lighting": "golden hour natural sunlight", "mood": "natural, free, adventurous"}}, "luxury": {"description": "럭셔리 고급", "overrides": {"setting": "luxury spa/hotel, marble and gold fixtures", "lighting": "cinematic lighting, warm color grading", "mood": "premium, sophisticated"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "edit-bg-swap", "kr": "배경 교체", "name": "换背景（保产品换场景）", "template": {"type": "edit the supplied real product photograph; replace only the surrounding scene", "subject": "Edit the supplied real product photograph. Replace only the surrounding scene with {new_background}. The product is {product_description}, identical to reference image", "preserve": "Keep the product itself unchanged: preserve its exact shape, proportions, packaging, cap, logo, label text, material and visible details", "integration": "match the new background lighting and contact shadows naturally", "constraints_edit": "do not redesign, relabel, duplicate, or obscure the product", "quality": "seamless composite, no edge halo"}, "defaults": {"background": "clean white seamless studio background", "integration": "realistic drop shadow, ambient reflection"}, "variants": {"to-white": {"description": "순백 배경으로(아마존 대표이미지 규격)", "overrides": {"background": "pure white seamless #FFFFFF, even studio lighting, no shadow edges", "integration": "soft contact shadow only"}}, "to-scene": {"description": "생활 장면으로(흰배경→연출컷)", "overrides": {"background": "{scene_description}, natural light", "integration": "matching ambient light, realistic reflection and shadow"}}, "to-gradient": {"description": "그라데이션 배경으로(브랜드 대표이미지)", "overrides": {"background": "{color} gradient studio backdrop", "integration": "studio rim light matching gradient tone"}}, "to-seasonal": {"description": "시즌 분위기로(같은 상품·기념일 배경)", "overrides": {"background": "{seasonal_setting} with props (pine/snow or blossoms or maple)", "integration": "matching seasonal lighting tone"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "scene-edit", "refRole": "scene", "shots": "none"}, {"id": "detail-macro", "kr": "디테일 접사(매크로)", "name": "细节微距图", "template": {"type": "macro product photography", "subject": "{product_description}, extreme close-up on {focus_area}", "detail": "visible {texture_description}", "lighting": "{lighting_style}", "camera": "shot with {camera_setup}", "quality": "ultra macro detail, professional product photography"}, "defaults": {"focus_area": "texture and material quality", "detail": "fine texture, material grain, surface quality", "lighting": "soft directional lighting highlighting texture", "camera": "dedicated macro lens setup"}, "variants": {"texture": {"description": "소재 질감 표현", "overrides": {"focus_area": "material surface showing grain and quality"}}, "formula": {"description": "제형(포뮬러) 표현", "overrides": {"focus_area": "product formula showing cream/liquid texture", "detail": "formula consistency, light reflection"}}, "craftsmanship": {"description": "공예 디테일 표현", "overrides": {"focus_area": "stitching, joints, edges, manufacturing precision"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "macro"}, {"id": "flat-lay", "kr": "플랫레이", "name": "平铺图", "template": {"type": "flat lay photography, top-down view", "subject": "{product_description} as hero at bottom center", "props": "{prop_list}", "background": "{background_material}", "color_palette": "{color_scheme}", "lighting": "soft natural window light from top-left at 45 degrees", "quality": "editorial photography, no text, no watermark"}, "defaults": {"props": "carefully curated complementary objects", "background": "ivory linen texture", "color_palette": "ivory, blush, champagne gold, sage green"}, "variants": {"luxury": {"description": "럭셔리 의식감", "overrides": {"props": "gold foil flakes, pearl beads, dried flowers, silk ribbon, leather journal", "background": "ivory linen with subtle shadow from sheer curtains", "color_palette": "ivory, blush pink, champagne gold, soft cream"}}, "minimal": {"description": "미니멀", "overrides": {"props": "only 2-3 essential items, clean lines", "background": "clean white surface", "color_palette": "white, gray, one accent color"}}, "seasonal": {"description": "시즌 테마", "overrides": {"props": "seasonal elements matching theme", "color_palette": "season-appropriate color scheme"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "flatlay"}, {"id": "ghost-mannequin", "kr": "고스트 마네킹", "name": "隐形模特", "template": {"type": "ghost mannequin product photography", "subject": "{product_description}", "form": "invisible mannequin creating natural 3D body shape", "details": "natural shoulder slope, bust/chest contour, waist curve visible", "background": "clean white or soft gray gradient", "lighting": "three-point studio setup, gentle dimension", "quality": "fashion e-commerce standard photography"}, "defaults": {"form": "natural body contours - shoulders, bust, waist", "background": "soft warm gray gradient", "lighting": "three-point studio setup creating gentle dimension"}, "variants": {"white-clean": {"description": "깔끔한 순백", "overrides": {"background": "pure white seamless", "lighting": "bright even commercial lighting"}}, "editorial": {"description": "매거진 스타일", "overrides": {"background": "moody dark gradient from charcoal to deep gray", "lighting": "spotlight from above creating dramatic highlight on shoulders"}}, "editorial-detail": {"description": "안감 디테일 노출", "overrides": {"details": "garment partially open revealing inner lining tag, rolled sleeves showing lining contrast"}}, "lifestyle": {"description": "환경 소품 포함", "overrides": {"background": "minimal studio with subtle editorial prop - single branch or flower in corner"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "infographic", "kr": "인포그래픽/A+ 콘텐츠", "name": "信息图/A+Content", "template": {"type": "e-commerce product infographic", "subject": "{product_description}", "features": "{feature_list}", "layout": "structured sections with clear hierarchy", "data_vis": "{data_elements}", "color_scheme": "{brand_colors}", "quality": "professional e-commerce design, mobile-friendly"}, "defaults": {"features": "4-6 key features with icons and descriptions", "layout": "clean grid, product as focal point", "data_vis": "simple charts or comparison tables", "color_scheme": "brand-consistent palette"}, "variants": {"amazon-a-plus": {"description": "아마존 A+ 스타일", "overrides": {"layout": "4-quadrant module with banner, feature blocks, comparison, badges", "data_vis": "comparison table, ingredient chart, certification badges"}, "lang": "English text for the Amazon listing unless requested otherwise"}, "feature-grid": {"description": "셀링포인트 그리드", "overrides": {"layout": "product centered with callout lines to feature blocks"}}, "story-flow": {"description": "스토리 흐름형", "overrides": {"layout": "vertical story: problem → solution → features → results"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "layout"}, {"id": "poster-banner", "kr": "프로모션 포스터/배너", "name": "促销海报/Banner", "template": {"type": "promotional poster design", "subject": "{product_description}", "background": "{background_description}", "headline": "{headline_text}", "subtitle": "{subtitle_text}", "price": "{price_info}", "cta": "{cta_text}", "style": "{visual_style}", "quality": "high-resolution professional marketing design"}, "defaults": {"background": "gradient matching brand aesthetic", "headline": "a short, punchy headline based on the product's key selling point", "subtitle": "one short supporting line", "price": "", "cta": "a short call-to-action button label (e.g. 지금 구매하기)", "style": "clean minimalist with accent colors"}, "variants": {"luxury": {"description": "하이엔드 럭셔리", "overrides": {"background": "full-bleed rich gradient, gold accents", "style": "luxury magazine editorial, gold foil, pearl embellishments"}}, "minimal": {"description": "미니멀 모던", "overrides": {"background": "clean white or light gradient", "style": "minimalist modern typography, generous white space"}}, "festive": {"description": "명절/기념일 테마", "overrides": {"background": "festive themed gradient with decorative elements", "style": "festive, cultural elements, seasonal motifs"}}, "flash-sale": {"description": "타임세일", "overrides": {"style": "bold attention-grabbing, high contrast, urgency elements"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "poster"}, {"id": "social-media", "kr": "SNS 소재", "name": "社交媒体素材", "template": {"type": "social media content", "subject": "{product_description}", "platform": "{platform_style}", "composition": "phone camera perspective, slightly off-center", "lighting": "natural indoor lighting", "overlay": "{overlay_elements}", "quality": "authentic smartphone photography aesthetic"}, "defaults": {"platform": "Instagram post style", "composition": "casual phone framing, slightly imperfect", "lighting": "natural window light, warm color tone", "overlay": "minimal stickers and text badges"}, "variants": {"xiaohongshu": {"description": "샤오홍슈 추천글 스타일", "overrides": {"platform": "Xiaohongshu RED app lifestyle photo, iPhone shot", "composition": "slightly tilted like quick grab shot", "lighting": "iPhone warm auto-white-balance, Kodak Portra 400 color feel", "overlay": "Xiaohongshu sticker, casual text, star rating"}}, "instagram": {"description": "인스타그램 게시물", "overrides": {"platform": "Instagram post premium aesthetic", "composition": "clean framing with visual hierarchy", "overlay": "engagement badges, hashtag elements"}}, "tiktok": {"description": "틱톡/릴스 커버", "overrides": {"platform": "TikTok/Reels thumbnail, vertical format", "overlay": "trending audio icon, duet prompt, engagement metrics"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "ugc-style", "kr": "UGC/구매후기 스타일", "name": "UGC风格/买家秀", "template": {"type": "authentic UGC snapshot", "subject": "{product_description}", "style": "smartphone front camera selfie, casual snapshot, NOT professional photography", "environment": "real lived-in space, slightly messy, NOT styled", "lighting": "indoor lighting with warm yellow cast, uneven", "imperfection": "visible noise/grain, imperfect framing, off-center, slightly tilted", "quality": "raw phone photo with natural imperfections, NOT AI-generated look, NOT studio quality"}, "defaults": {"style": "iPhone front camera, candid snapshot", "environment": "real bathroom or bedroom, lived-in details", "lighting": "warm indoor overhead lighting, slight yellow cast", "imperfection": "noise in shadows, not oversharpened, slight highlight overexposure"}, "variants": {"mirror-selfie": {"description": "욕실 거울 셀카", "overrides": {"style": "iPhone front camera mirror selfie", "environment": "bathroom mirror, slight condensation and fog marks", "imperfection": "phone case at edge, finger smudge on mirror"}}, "ccd-retro": {"description": "CCD 레트로 필름 감성", "overrides": {"style": "vintage 2005 CCD digicam photo, direct flash, cheap camera aesthetic", "lighting": "harsh direct on-camera flash, strong warm yellow-green color shift, blown-out highlights", "imperfection": "heavy film grain, overexposed skin on forehead and nose, flash hotspot, chromatic aberration at edges, red date stamp bottom-right corner"}}, "grwm": {"description": "GRWM(같이 준비해요)", "overrides": {"style": "Get Ready With Me video thumbnail, morning routine", "environment": "vanity mirror, slightly messy counter"}}, "unboxing": {"description": "언박싱 후기", "overrides": {"style": "casual unboxing photo on bed or desk", "environment": "bed with wrinkled sheets or cluttered desk"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "person"}, {"id": "comparison-chart", "kr": "경쟁제품 비교표", "name": "竞品对比图（横向 vs 对比）", "template": {"type": "side-by-side competitor comparison graphic", "subject": "{product_description} vs {competitor_description}", "layout": "split comparison with our brand highlighted", "criteria": "{comparison_criteria}", "visual_cue": "checkmark vs cross / filled vs empty / glowing vs muted", "quality": "clean infographic comparison, professional e-commerce,"}, "defaults": {"layout": "our brand left (highlighted) vs generic/competitor right (muted)", "criteria": "5-7 criteria with checkmark/cross icons", "visual_cue": "green checkmark for ours, gray cross for competitor"}, "variants": {"checkmark-grid": {"description": "체크/엑스 표(기능 매트릭스)", "overrides": {"layout": "criteria rows, two columns (Our Brand / Generic), checkmark vs cross", "visual_cue": "green check / red cross"}}, "spec-bars": {"description": "스펙 막대 비교(수치 시각화)", "overrides": {"layout": "horizontal bar chart per criterion, our bar longer and brand-colored", "visual_cue": "filled bar vs partial bar"}}, "split-image": {"description": "좌우 분할 이미지 비교", "overrides": {"layout": "vertical split image: our product result left, competitor result right, label both", "visual_cue": "our side bright and sharp, competitor side dull"}}, "venn": {"description": "벤 다이어그램(고유 강점 강조)", "overrides": {"layout": "two overlapping circles, our-only advantages in the non-overlap zone", "visual_cue": "our exclusive features highlighted in brand color"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "none"}, {"id": "gift-set", "kr": "기프트 세트/선물 연출", "name": "节日礼盒场景图（节庆送礼套装）", "template": {"type": "festive gift set scene photography", "subject": "{product_description} as a holiday gift set", "occasion": "{festival_or_occasion}", "arrangement": "gift box presentation with ribbon, card, festive props", "mood": "warm celebratory gifting atmosphere", "quality": "editorial gift photography,"}, "defaults": {"occasion": "Christmas", "arrangement": "open gift box with products, ribbon, greeting card, festive scatter", "mood": "warm golden celebratory"}, "variants": {"christmas": {"description": "크리스마스 선물세트(레드·그린/솔가지/따뜻한 조명)", "overrides": {"occasion": "Christmas", "arrangement": "red and green gift box, pine branches, gold ribbon, fairy lights, snow dusting", "mood": "warm cozy Christmas golden"}}, "lunar-new-year": {"description": "설날 선물세트(레드·골드/등불/복)", "overrides": {"occasion": "Lunar New Year", "arrangement": "red and gold gift box, paper lantern, plum blossom, gold foil, subtle festive character", "mood": "warm red festive gold glow"}}, "valentine": {"description": "밸런타인 선물세트(핑크/장미/벨벳)", "overrides": {"occasion": "Valentine's Day", "arrangement": "pink/red gift box, rose petals, velvet ribbon, heart tag, pearls", "mood": "romantic soft pink glow"}}, "mother-day": {"description": "어버이날 선물세트(핑크톤/카네이션/따뜻함)", "overrides": {"occasion": "Mother's Day", "arrangement": "soft pink gift box, carnations, handwritten card, pearls, lace", "mood": "warm tender maternal"}}, "wedding": {"description": "웨딩 답례품(화이트골드/꽃/우아함)", "overrides": {"occasion": "Wedding favor", "arrangement": "white and gold gift box, fresh florals, satin ribbon, calligraphy tag", "mood": "elegant ivory celebration"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "group"}, {"id": "multi-angle-grid", "kr": "다각도 그리드", "name": "产品多角度网格", "template": {"type": "product photography grid layout", "subject": "{product_description}", "grid": "2x2 or 3x3 equal squares", "variation": "different angles or colorways", "background": "clean white in each cell", "separators": "thin white borders between cells", "quality": "catalog photography, uniform lighting across all cells"}, "defaults": {"grid": "2x2 grid, 4 views", "variation": "front, side, back, top-down angles", "background": "clean white per cell", "separators": "thin white borders"}, "variants": {"angle-view": {"description": "다각도 뷰", "overrides": {"variation": "front, side, back, top-down, 3/4 angle views", "grid": "2x2 or 3x3"}}, "colorway": {"description": "컬러웨이 전시", "overrides": {"variation": "same product in different colors, consistent 3/4 angle", "grid": "3x3 for 9 colors or 2x3 for 6 colors"}}, "feature-grid": {"description": "기능 표기 그리드", "overrides": {"variation": "each cell shows different product feature with label and icon", "grid": "hero image left + 4 smaller shots right column"}}, "comparison": {"description": "비교 그리드", "overrides": {"variation": "before/after or product vs competitor in side-by-side grid"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "multi-product", "kr": "다중 상품 세트", "name": "多产品套装/组合展示", "template": {"type": "multi-product bundle photography", "subject": "{product_set_description}", "arrangement": "organized composition, all products clearly visible", "background": "{background_description}", "decorative": "{decorative_elements}", "quality": "professional product photography,"}, "defaults": {"arrangement": "organized with consistent spacing, all visible, no overlap", "background": "clean suitable for showcase", "decorative": "luxury elements for gift-ready presentation"}, "variants": {"gift-set": {"description": "선물세트", "overrides": {"arrangement": "products in gift box with cards", "decorative": "satin ribbon, gold foil, dried flowers, pearls"}}, "routine-set": {"description": "사용 순서(루틴) 세트", "overrides": {"arrangement": "products in order of use, step indicators"}}, "lineup": {"description": "제품 라인업", "overrides": {"arrangement": "neat row, hero centered and larger", "decorative": "minimal, clean", "background": "white seamless"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "group"}, {"id": "device-mockup", "kr": "디바이스 목업", "name": "设备界面模型", "template": {"type": "product device mockup photography", "subject": "{product_description} displayed on device screen", "device": "laptop or smartphone on desk", "screen_content": "modern clean app/dashboard interface", "desk_accessories": "coffee cup, plant, notebook, natural work environment", "lighting": "natural window light with warm fill", "quality": "tech product photography, screen content tack-sharp"}, "defaults": {"device": "latest laptop on clean desk", "desk_accessories": "coffee cup, small plant, wireless mouse, notebook", "lighting": "soft window light from left, warm overhead fill", "background": "modern minimal office environment"}, "variants": {"single-laptop": {"description": "노트북 단독", "overrides": {"device": "MacBook Pro showing product interface, shallow depth of field on screen"}}, "multi-device": {"description": "멀티 디바이스", "overrides": {"device": "iPad center + iPhone left + smartwatch right, all showing consistent app UI"}}, "phone-only": {"description": "스마트폰 단독", "overrides": {"device": "iPhone held at slight angle in hand, lifestyle background, screen clearly visible"}}, "office-lifestyle": {"description": "오피스 장면", "overrides": {"desk_accessories": "Aesop hand cream, Muji pen holder, latte with art, hardcover notebook, trailing plant on shelf", "background": "Scandinavian home office with white bookshelf"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "livestream", "kr": "라이브커머스 배경", "name": "电商直播间场景", "template": {"type": "e-commerce livestream screenshot", "host": "{host_description}", "product_action": "{product_demonstration}", "background": "real home-style livestream setup", "ui_overlay": "live commerce UI elements", "lighting": "ring light from front, warm indoor overhead mixing in", "quality": "authentic phone screen capture, NOT AI-generated look"}, "defaults": {"host": "friendly person, natural expression, visible skin texture, NOT retouched", "product_action": "holding product close to camera showing details", "background": "organized but real product shelf, LED strip, small plants", "ui_overlay": "viewer count, LIVE badge, comments, product card, buy button", "lighting": "ring light circular catchlight in eyes, warm indoor overhead"}, "variants": {"douyin": {"description": "더우인 라이브 스타일", "overrides": {"ui_overlay": "Douyin UI: LIVE badge, viewer count, scrolling comments, product card with price and buy button, gift icons, shopping cart"}}, "taobao": {"description": "타오바오 라이브 스타일", "overrides": {"ui_overlay": "Taobao Live UI: product listing, coupon badges, viewer count, chat"}}, "setup": {"description": "라이브 스튜디오 세트", "overrides": {"ui_overlay": "no UI overlay, showing physical setup", "background": "full view of studio with lighting, backdrop, shelves"}, "shots": "none"}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "presenter"}, {"id": "luxury-atmospherics", "kr": "럭셔리 무드", "name": "奢华氛围渲染", "template": {"type": "luxury product photography with atmospheric effects", "subject": "{product_description}", "surface": "polished dark reflective surface", "atmosphere": "wisps of smoke, floating petals, light particles", "lighting": "dramatic rim light + cool ambient fill", "background": "infinite dark void with subtle gradient", "quality": "luxury advertising photography"}, "defaults": {"surface": "polished obsidian or black marble platform", "atmosphere": "purple-blue smoke wisps + floating elements", "lighting": "golden rim light from upper-left, cool blue backlight"}, "variants": {"floral-dream": {"description": "몽환적인 꽃", "overrides": {"atmosphere": "fresh flower petals floating at various heights catching light, scattered gold leaf particles"}}, "smoke-mystique": {"description": "신비로운 연기", "overrides": {"atmosphere": "multi-layered violet and midnight blue smoke swirling around product"}}, "golden-luxe": {"description": "골드 럭셔리", "overrides": {"atmosphere": "golden bokeh particles, warm amber glow, scattered gold flakes"}}, "ice-crystal": {"description": "차가운 얼음 결정", "overrides": {"atmosphere": "floating ice crystals, frost patterns, diamond-like light refractions", "lighting": "cool platinum spotlight, ice-blue ambient"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "bulk-translate", "kr": "레이아웃 유지 다국어 번역", "name": "保版式批量翻译（多市场图集一键换语言）", "template": {"type": "layout-preserving text translation across an image set", "subject": "Translate the text in all images into {target_language}. Preserve the layout exactly: same font size relationships, same positions, same colors, same line breaks; only the language of the text changes", "integration": "translated text must fit naturally in the original text areas — adjust tracking/leading minimally if needed, never reflow or resize design elements", "quality": "accurate natural {target_language} copy appropriate for e-commerce, correct diacritics and punctuation, no leftover source-language fragments"}, "defaults": {}, "variants": {"market-pack": {"description": "한 번에 다국어(같은 세트를 N개 언어로)", "overrides": {"subject": "Generate a {target_language} version of each image, translating all visible text. Preserve layout exactly: positions, sizes, colors, line breaks unchanged; only the language changes. Produce one version per image."}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "text-edit", "refRole": "scene", "shots": "none"}, {"id": "bulk-product-swap", "kr": "레이아웃 유지 상품 교체", "name": "爆款图换品（保版式批量替换产品）", "template": {"type": "bulk product replacement across a reference image set, preserving everything except the product itself", "subject": "Replace the product in image 1 across images 2-7. Only the swapped product changes; keep everything else identical — composition, layout, background, lighting, text placement, props, camera angle, and style stay exactly as in each target image", "preserve": "the new product's shape, proportions, {color} packaging, logo, and label text come ONLY from image 1; scale it naturally to fit each scene's perspective and contact shadows", "quality": "seamless composite per image, consistent series look, no artifacts at product boundaries"}, "defaults": {}, "variants": {"single-target": {"description": "단일 이미지 상품 교체(이미지1 상품을 이미지2 장면에)", "overrides": {"subject": "Replace the product in image 2 with the product from image 1. Only the product changes; background, lighting, composition, and camera stay exactly as in image 2", "preserve": "product identity from image 1 only: shape, color, logo, label text"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "swap", "refRole": "swap-target", "shots": "none"}, {"id": "magazine-editorial", "kr": "매거진 화보/커버", "name": "杂志大片/封面", "template": {"type": "fashion/beauty magazine cover editorial", "subject": "{product_description}", "model": "person holding or wearing product in editorial pose", "makeup_hair": "polished editorial beauty look", "background": "studio backdrop in warm/tonal color", "lighting": "beauty dish + rim light, editorial setup", "layout": "magazine masthead area at top, barcode space at bottom", "quality": "Vogue-quality editorial photography"}, "defaults": {"lighting": "beauty dish from front-left, soft rim light on hair", "background": "studio backdrop warm peach-nude tone", "layout": "masthead area top, issue text bottom-left, barcode bottom-right"}, "variants": {"beauty-cover": {"description": "뷰티 커버", "overrides": {"model": "close-up portrait with glowing skin, holding skincare near face", "makeup_hair": "dewy natural, glossy lips, subtle smoky eye"}}, "fashion-cover": {"description": "패션 커버", "overrides": {"model": "full or 3/4 body shot wearing fashion product, confident pose", "makeup_hair": "bold editorial makeup, high-fashion styling"}}, "fragrance-editorial": {"description": "향수 화보", "overrides": {"model": "person in contemplative pose with fragrance bottle, atmospheric", "background": "dark moody backdrop with atmospheric haze"}}, "minimal-editorial": {"description": "미니멀 매거진 내지", "overrides": {"background": "clean white studio, no backdrop color", "layout": "no masthead, clean full-bleed editorial image"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "presenter"}, {"id": "storefront", "kr": "매장/공간 연출", "name": "店铺门面/空间摄影", "template": {"type": "retail/storefront architectural photography", "subject": "{business_description}", "exterior": "clean facade with signage and window display", "interior": "curated display shelving, consultation area, ambient lighting", "lighting": "golden hour exterior or warm ambient interior", "quality": "editorial architectural photography, wide-angle sharp"}, "defaults": {"exterior": "large glass windows, signage, entrance details, potted plants", "lighting": "late afternoon warm golden light, interior already glowing", "camera": "wide-angle lens, f/8-f/11 for full sharpness"}, "variants": {"exterior": {"description": "매장 외관", "overrides": {"exterior": "full storefront view with window display, entrance, street context", "interior": "visible through glass windows only"}}, "interior": {"description": "실내 공간", "overrides": {"interior": "wide-angle interior showing product displays, furniture, lighting design", "exterior": "not visible"}}, "corner-detail": {"description": "코너 디테일", "overrides": {"interior": "close-up vignette of a curated corner: consultation table, product samples, single flower"}}, "aerial-plan": {"description": "위에서 본 평면", "overrides": {"camera": "top-down bird's eye view showing full floor plan layout"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "motion-gif", "kr": "모션 GIF 프레임", "name": "产品动图（多格帧图合成 GIF/WebP 动效）", "template": {"type": "16-frame contact sheet for stop-motion style product animation, arranged as a 4x4 grid, frames read left-to-right top-to-bottom", "subject": "{product_description}, identical to reference image across ALL 16 frames: same shape, color, logo, label, lighting", "motion": "camera orbits the product {orbit_direction} by 60 degrees total across the sequence (start 30 degrees left, end 30 degrees right), product stays centered and stationary, background elements slide horizontally to convey rotation", "grid": "equal square cells, consistent margins, consistent lighting from frame 1 to frame 16, no frame borders or numbering", "quality": "consistent product identity across frames, smooth incremental change between adjacent frames, commercial e-commerce quality"}, "defaults": {"orbit_direction": "from left to right"}, "variants": {"loop-orbit": {"description": "360° 회전(대표이미지/상세 첫 컷 기본)", "overrides": {"motion": "camera orbits 60 degrees left-to-right, motion eases in slow at the start and faster at the end so the reversed playback loops seamlessly"}}, "highlight-turn": {"description": "상품 자체의 작은 동작(뚜껑 열림/회전부)", "overrides": {"motion": "the product's {moving_part} moves through one full action cycle across the frames, camera fully locked, background static"}, "fidelity": "parts"}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "edit-mask", "kr": "부분(마스크) 편집", "name": "蒙版/局部编辑（保区域改区域）", "template": {"type": "masked regional edit (preserve specified region, modify target region)", "subject": "{product_description}", "preserve_region": "{area_to_keep_unchanged}", "edit_region": "{area_to_modify}", "edit_instruction": "{modification_description}", "quality": "seamless inpainting, no visible boundary,"}, "defaults": {"preserve_region": "product body and logo", "edit_region": "background or model", "edit_instruction": "natural-looking modification matching surrounding context"}, "variants": {"swap-model": {"description": "모델만 교체(상품·배경 유지, 손 모델 교체)", "overrides": {"preserve_region": "product appearance, background, props", "edit_region": "model only", "edit_instruction": "replace with {new_model_description}, consistent skin tone with lighting"}}, "fix-defect": {"description": "결점 보정(반사/얼룩/라벨 비뚤어짐 수정)", "overrides": {"preserve_region": "overall composition", "edit_region": "defect area", "edit_instruction": "clean up {defect}, match surrounding texture"}}, "swap-prop": {"description": "소품 교체(상품 유지, 함께 놓인 소품 교체)", "overrides": {"preserve_region": "product, background, lighting", "edit_region": "props only", "edit_instruction": "replace props with {new_props}"}}, "extend-canvas": {"description": "캔버스 확장(원본 유지, 바깥으로 확장)", "overrides": {"preserve_region": "original frame content", "edit_region": "canvas extension area", "edit_instruction": "extend scene outward, matching perspective and lighting"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "base-edit", "refRole": "scene", "shots": "none"}, {"id": "exploded-view", "kr": "분해도(익스플로디드 뷰)", "name": "技术拆解/爆炸图", "template": {"type": "technical product exploded view", "subject": "{product_description}", "components": "{component_list}", "arrangement": "vertical stack with increasing spacing", "background": "clean light gray or white", "labels": "thin leader lines to callout labels with name and key spec", "quality": "technical illustration, precise component rendering"}, "defaults": {"arrangement": "vertical exploded stack", "background": "clean light gray", "labels": "component name + material + core spec"}, "variants": {"blueprint": {"description": "블루프린트 스타일", "overrides": {"background": "dark charcoal with cyan grid lines", "labels": "white and gold typography, blueprint aesthetic"}}, "minimal": {"description": "미니멀 흰배경", "overrides": {"background": "pure white, no grid", "labels": "minimal black text, thin gray leader lines"}}, "apple-style": {"description": "애플 제품 분해 스타일", "overrides": {"arrangement": "isometric floating with precise spacing", "background": "deep gradient from charcoal to black", "labels": "elegant sans-serif, golden accent lines"}}, "editorial": {"description": "매거진 에디토리얼 스타일", "overrides": {"background": "warm off-white with subtle texture", "labels": "serif font callouts, hand-drawn arrow style"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "parts", "refRole": "layout", "shots": "none"}, {"id": "brand-story", "kr": "브랜드 스토리", "name": "品牌故事图（创始人/工艺/传承叙事）", "template": {"type": "brand story / heritage narrative graphic", "subject": "{brand_or_product_description}", "narrative_angle": "{story_angle}", "visual_elements": "{story_elements}", "mood": "editorial documentary tone, authentic human touch", "quality": "cinematic brand documentary photography,"}, "defaults": {"narrative_angle": "craftsmanship heritage — maker at work", "visual_elements": "artisan hands, workshop, raw materials, tools, finished product", "mood": "warm documentary, authentic, human"}, "variants": {"founder": {"description": "창업자 스토리(인물·공방·기원)", "overrides": {"narrative_angle": "founder portrait in workshop with origin story", "visual_elements": "founder, workshop, early prototypes, signature, brand milestone"}}, "craftsmanship": {"description": "장인정신 스토리(제작 과정)", "overrides": {"narrative_angle": "craftsman hands making the product step by step", "visual_elements": "skilled hands, raw material → finished good, tools, focused expression"}}, "heritage": {"description": "전통·유산 스토리(세대/역사/클래식)", "overrides": {"narrative_angle": "generational heritage, vintage reference, time progression", "visual_elements": "old photo, generational hands, archival materials, modern product"}}, "origin": {"description": "원산지 스토리(원료·산지)", "overrides": {"narrative_angle": "origin sourcing journey — where ingredients/materials come from", "visual_elements": "origin landscape, raw source, local hands, harvest/extract moment"}}, "process": {"description": "제조 공정(다단계 수작업)", "overrides": {"narrative_angle": "multi-step making process collage", "visual_elements": "4-6 process steps with hand + tool + material transformation"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "none"}, {"id": "before-after", "kr": "사용 전후 비교", "name": "使用前后对比图", "template": {"type": "before/after comparison visualization", "subject": "{product_description}", "before_state": "{before_description}", "after_state": "{after_description}", "metrics": "{data_points}", "divider": "elegant center divider", "quality": "professional campaign photography"}, "defaults": {"before_state": "dull, dry, uneven appearance", "after_state": "radiant, smooth, healthy appearance", "metrics": "improvement percentage", "divider": "elegant gold line with arrow"}, "variants": {"clinical": {"description": "임상 데이터 스타일", "overrides": {"metrics": "detailed data grid with 4+ metrics and percentage arrows"}}, "cinematic": {"description": "영화 같은 변신", "overrides": {"before_state": "moody dramatic, cool tone", "after_state": "bright warm golden hour, warm tone", "divider": "decorative vintage frame with product"}}, "simple": {"description": "심플 인포그래픽", "overrides": {"metrics": "simple progress bar with key metric"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "none"}, {"id": "size-spec", "kr": "사이즈 스펙/사용법", "name": "尺寸规格+使用步骤图", "template": {"type": "product specification and usage guide infographic", "subject": "{product_description}", "dimensions": "{size_annotations}", "steps": "{usage_steps}", "extras": "{additional_info}", "style": "clean professional layout", "quality": "professional e-commerce infographic"}, "defaults": {"dimensions": "height, width with measurement lines and arrows", "steps": "3-4 step numbered usage guide with icons", "extras": "ingredient highlights or feature badges", "style": "clean white, professional typography"}, "variants": {"premium-editorial": {"description": "하이엔드 매거진", "overrides": {"style": "luxury editorial with decorative elements, gold accents, premium typography"}}, "technical": {"description": "기술 사양", "overrides": {"dimensions": "detailed specs with reference objects for scale", "extras": "comparison charts, certification badges, data grids"}}, "ritual-guide": {"description": "사용 루틴 가이드", "overrides": {"steps": "decorative numbered ritual guide with small illustrations"}}}, "text": true, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "layout"}, {"id": "edit-recolor", "kr": "색상 변경(컬러 베리에이션)", "name": "换色（产品多色变体）", "template": {"type": "product recolor variant (preserve form, change only color/finish)", "subject": "{product_description} in {target_color} colorway", "preservation": "identical form factor, silhouette, proportions, logo, label, material texture pattern as reference", "color_application": "{target_color} applied with realistic material response (matte/metallic/glossy as original)", "quality": "color variant, consistent lighting,"}, "defaults": {"color_application": "matte finish matching original material", "preservation": "same angle, same lighting, same background as reference"}, "variants": {"multi-sku-grid": {"description": "다색 SKU 그리드(같은 각도·다른 색 배열)", "overrides": {"color_application": "N-color grid, each cell same product different color, consistent angle/lighting"}}, "matte-to-glossy": {"description": "같은 색·마감 변경(무광↔유광)", "overrides": {"color_application": "same color, switch finish between matte / glossy / metallic"}}, "color-wheel": {"description": "컬러휠 변형(6~8가지 색 한 번에)", "overrides": {"color_application": "8 product instances in a row, color sequence: red/orange/yellow/green/blue/purple/pink/neutral"}}, "brand-palette": {"description": "브랜드 팔레트 변형", "overrides": {"color_application": "apply brand palette {brand_colors} only"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "recolor", "refRole": "scene", "shots": "none"}, {"id": "sports-campaign", "kr": "스포츠/피트니스 광고", "name": "运动/健身广告", "template": {"type": "sports/fitness advertising campaign photography", "subject": "{product_description}", "athlete": "athletic model in dynamic pose with product", "props": "sports equipment as visual anchor, exaggerated scale", "background": "minimal dark studio with reflective floor", "typography": "bold condensed headline + subtitle", "quality": "Nike/Under Armour campaign quality"}, "defaults": {"background": "dark studio, reflective black floor", "typography": "bold condensed font, brand color accent", "lighting": "spotlight from above, dramatic body highlights"}, "variants": {"product-hero": {"description": "제품 메인 비주얼", "overrides": {"athlete": "no model, product floating at dynamic angle", "props": "motion lines and speed effects around product"}, "shots": "product"}, "athlete-action": {"description": "선수 역동 컷", "overrides": {"athlete": "athlete mid-action wearing product, stadium lights, lens flare"}}, "triptych": {"description": "3단 구성", "overrides": {"layout": "three vertical panels: close-up detail + action shot + product hero, unified bottom strip with branding"}, "shots": "none"}, "gym-power": {"description": "헬스 파워", "overrides": {"athlete": "muscular athlete seated on oversized dumbbell or equipment", "props": "exaggerated fitness equipment placed diagonally"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "person", "shots": "person"}, {"id": "edit-localization", "kr": "시장별 로컬라이즈", "name": "本地化（同产品不同市场视觉调整）", "template": {"type": "market localization edit (preserve product, adapt aesthetic/text/model for target region)", "subject": "{product_description}, identical product as reference", "region": "{target_region}", "adaptation": "{region_aesthetic_adjustments}", "text_overlay": "{localized_copy}", "quality": "culturally authentic localization,"}, "defaults": {"region": "US", "adaptation": "minimal clean western aesthetic, English copy, neutral model diversity"}, "variants": {"us": {"description": "미국 시장(깔끔/영문/다양한 모델)", "overrides": {"adaptation": "clean bright western aesthetic, diverse ethnicity models, English copy, confident lifestyle tone", "text_overlay": "English benefit-driven headline"}}, "eu": {"description": "유럽 시장(자연스럽고 절제/다국어/지속가능)", "overrides": {"adaptation": "natural muted earthy palette, minimalist editorial, multi-language text option, eco-conscious cues", "text_overlay": "French/German minimal copy"}}, "sea": {"description": "동남아 시장(선명·발랄/프로모션/열대)", "overrides": {"adaptation": "vibrant saturated colors, promotional energy, tropical context, Shopee/Lazada banner style", "text_overlay": "bold promo copy with local language"}}, "jp": {"description": "일본 시장(섬세한 디테일/장인감/여백)", "overrides": {"adaptation": "refined detail-oriented layout, artisan craftsmanship cues, soft pastel, generous whitespace", "text_overlay": "Japanese refined minimal copy"}}, "me": {"description": "중동 시장(럭셔리 골드/기하 문양/가족)", "overrides": {"adaptation": "luxurious gold and deep tone palette, geometric patterns, family/hospitality theme", "text_overlay": "Arabic elegant typography"}}}, "text": false, "textOk": true, "lang": "in the target market's language named above", "fidelity": "scene-edit", "refRole": "scene", "shots": "none"}, {"id": "edit-seasonal", "kr": "시즌 분위기 변경", "name": "换季（同产品不同季节氛围）", "template": {"type": "seasonal atmosphere swap (preserve product, change season/holiday mood)", "subject": "{product_description}, identical product as reference", "seasonal_setting": "{target_season_or_holiday} setting with thematic props", "lighting": "season-matched color temperature and lighting", "quality": "seasonal re-styling,"}, "defaults": {"seasonal_setting": "Christmas: pine branches, red ribbon, warm bokeh lights", "lighting": "warm cinematic seasonal tone"}, "variants": {"christmas": {"description": "크리스마스(솔가지/빨간 리본/따뜻한 조명/눈)", "overrides": {"seasonal_setting": "pine branches, red velvet ribbon, gold ornaments, warm fairy lights, soft snow", "lighting": "warm golden bokeh, cozy cinematic"}}, "spring-festival": {"description": "설날(레드·골드/등불/매화/복)", "overrides": {"seasonal_setting": "red and gold palette, paper lantern, plum blossom branch, subtle '福' character, gold foil", "lighting": "warm festive red glow"}}, "summer": {"description": "여름(햇살/야자수/해변/얼음)", "overrides": {"seasonal_setting": "tropical palm leaves, sand, ice crystals, citrus slices, bright sky", "lighting": "bright cool daylight, fresh"}}, "autumn": {"description": "가을(단풍/호박/시나몬/따뜻한 나무)", "overrides": {"seasonal_setting": "maple leaves, mini pumpkin, cinnamon sticks, warm walnut wood surface", "lighting": "amber golden hour window light"}}, "valentine": {"description": "밸런타인(장미/핑크톤/벨벳)", "overrides": {"seasonal_setting": "pink and red roses, velvet drape, soft pearls, rose petals", "lighting": "soft romantic pink glow"}}, "halloween": {"description": "할로윈(잭오랜턴/퍼플톤/연기)", "overrides": {"seasonal_setting": "carved pumpkin, purple mist, dark gothic props, candlelight", "lighting": "moody purple-orange candlelit"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "scene-edit", "refRole": "scene", "shots": "none"}, {"id": "seasonal-campaign", "kr": "시즌 캠페인 그리드", "name": "季节主题网格", "template": {"type": "seasonal product campaign grid", "subject": "{product_description}", "layout": "2x2 grid, one product in four seasonal settings", "spring": "pastel tones, blossoms, morning dew, soft light", "summer": "bright warm tones, tropical elements, golden light", "autumn": "warm amber, dried leaves, cinnamon, window light", "winter": "cool blues, pine branches, frost, moonlight", "quality": "brand campaign photography, consistent product placement"}, "defaults": {"layout": "2x2 grid with thin white or gold borders", "consistency": "same product angle and size across all four quadrants"}, "variants": {"four-seasons": {"description": "클래식 사계절", "overrides": {"layout": "2x2, each quadrant a full seasonal scene"}}, "holiday-series": {"description": "기념일 시리즈", "overrides": {"layout": "2x3 or 3x2 grid, each cell a different holiday theme (Valentine's, Easter, Summer, Halloween, Thanksgiving, Christmas)"}}, "day-to-night": {"description": "낮·밤 변형", "overrides": {"layout": "2x2 grid, same scene at dawn, morning, afternoon, night"}}, "travel-series": {"description": "여행 테마", "overrides": {"layout": "2x2 grid, product in 4 travel destinations with local elements"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "a-plus-modules", "kr": "아마존 A+ 모듈 이미지", "name": "亚马逊 A+ 模块图（精确尺寸）", "template": {"type": "Amazon A+ Content module graphic (precise platform dimensions)", "subject": "{product_description}", "module_size": "{a_plus_module_size}", "layout": "modular brand story with header, feature blocks, comparison, lifestyle", "brand_system": "{brand_colors} palette, {brand_font} typography", "quality": "clean professional e-commerce design, mobile-readable,"}, "defaults": {"module_size": "970x600 (standard brand story module)", "layout": "left product hero, right 3 feature blocks with icons, bottom brand banner", "brand_system": "brand-consistent palette, sans-serif typography"}, "variants": {"brand-story-970x600": {"description": "브랜드 스토리 메인 모듈 970x600", "overrides": {"module_size": "970x600 pixels", "layout": "brand logo top-left, hero lifestyle image, brand promise headline, 2-3 value pillars with icons"}}, "feature-grid-970x300": {"description": "기본 기능 소개 모듈 970x300", "overrides": {"module_size": "970x300 pixels", "layout": "horizontal banner, product left, 3-4 feature callouts with icons right"}}, "comparison-970x300": {"description": "비교 모듈 970x300", "overrides": {"module_size": "970x300 pixels", "layout": "comparison table: our brand vs generic, checkmark/cross style"}}, "quad-300x300": {"description": "4분할 소형 모듈 300x300(각각)", "overrides": {"module_size": "300x300 pixels each, 4 modules", "layout": "2x2 grid, each cell one feature with icon + short label"}}, "lifestyle-banner-970x600": {"description": "라이프스타일 배너 970x600", "overrides": {"module_size": "970x600 pixels", "layout": "full-bleed lifestyle scene, product integrated, short overlay copy bottom"}}}, "text": true, "textOk": true, "lang": "English text for the Amazon listing unless requested otherwise", "fidelity": "reshoot", "refRole": "layout", "shots": "none"}, {"id": "packaging-unbox", "kr": "언박싱 단계컷", "name": "包装拆箱流程图（开箱步骤/层次展示）", "template": {"type": "unboxing sequence / packaging layer reveal", "subject": "{product_description} unboxing journey", "sequence": "{unboxing_steps}", "presentation": "step-by-step reveal OR exploded layer view", "surface": "premium neutral surface", "quality": "editorial unboxing photography, consistent lighting,"}, "defaults": {"sequence": "4-step reveal: sealed box → sleeve off → inner tray → product with accessories", "presentation": "horizontal 4-panel strip, consistent composition"}, "variants": {"step-strip": {"description": "가로 단계 스트립(4~6단계 나란히)", "overrides": {"sequence": "4-6 sequential panels left to right, each a unboxing stage", "presentation": "horizontal strip with subtle step numbers"}}, "exploded-layers": {"description": "분해 레이어(세로로 층층이)", "overrides": {"sequence": "vertical exploded view: outer box → sleeve → tray → product → accessories", "presentation": "stacked with subtle separation showing every layer"}}, "grid-2x2": {"description": "2x2 단계 그리드", "overrides": {"sequence": "4 key moments in 2x2 grid", "presentation": "2x2 grid with consistent lighting"}}, "single-hero-open": {"description": "단일 개봉 컷(뚜껑 여는 순간)", "overrides": {"sequence": "single moment: box open, product revealed, tissue lifted", "presentation": "hero shot with dramatic reveal lighting"}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "none"}, {"id": "creative-concept", "kr": "크리에이티브 컨셉 광고", "name": "创意概念广告图", "template": {"type": "creative advertising photography", "subject": "{product_description}", "concept": "{creative_concept}", "effects": "{special_effects}", "color_palette": "{bold_palette}", "art_direction": "{art_style}", "quality": "advertising photography, cinematic"}, "defaults": {"concept": "dynamic product with unexpected visual elements", "effects": "dramatic visual impact", "color_palette": "bold unusual combinations", "art_direction": "strong visual narrative"}, "variants": {"splash-dynamic": {"description": "스플래시 역동 효과", "overrides": {"effects": "water splash / powder explosion frozen in motion, high-speed photography", "art_direction": "dramatic, vivid, commercial style"}}, "surreal": {"description": "초현실 컨셉", "overrides": {"concept": "product in unexpected surreal environment", "effects": "gravity-defying, impossible geometry"}}, "minimal-art": {"description": "미니멀 아트", "overrides": {"concept": "product as art object in minimalist composition", "color_palette": "monochromatic or two-tone"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}, {"id": "transparent-cutout", "kr": "투명 배경 누끼", "name": "透明抠图（PNG/WebP 透明底产品提取）", "template": {"type": "product extraction onto fully transparent background (official GPT-Image-2.5 cutout recipe, verbatim)", "subject": "Extract the product from the input image and isolate it on a fully transparent background", "output": "centered product, crisp silhouette, no halos/fringing", "preserve": "product geometry and label legibility exactly", "constraints": "Add only light polishing. Do not add a solid backdrop, checkerboard, scenery, or shadow. Do not restyle the product; remove the background and preserve clean alpha transparency."}, "defaults": {}, "variants": {"webp-transparent": {"description": "WebP 투명(용량 작음·반투명 지원, 움짤 잔상 방지에 우선)", "overrides": {}}}, "text": false, "textOk": false, "lang": "Korean text unless requested otherwise", "fidelity": "scene-edit", "refRole": "scene", "shots": "none"}, {"id": "packaging", "kr": "패키지 디자인 연출", "name": "包装设计展示", "template": {"type": "packaging design visualization", "subject": "{product_description}", "display": "{packaging_components}", "surface": "premium marble surface", "decorative": "scattered luxury elements", "lighting": "soft directional with metallic reflections", "quality": "premium design presentation,"}, "defaults": {"display": "full spread: product, outer box, tissue, ribbon, brand card", "decorative": "gold foil, pearls, dried petals, silk fabric"}, "variants": {"luxury-gift": {"description": "럭셔리 선물상자", "overrides": {"display": "gift box opened: outer box, inner tray, product, ribbon, brand card", "decorative": "gold foil, pearls, dried roses, silk scarf"}}, "minimal-eco": {"description": "미니멀 친환경", "overrides": {"display": "sustainable packaging: recycled paper, soy ink, simple label", "decorative": "natural elements, dried leaves, twine"}}, "unboxing": {"description": "언박싱 경험", "overrides": {"display": "unboxing sequence: box opening, tissue reveal, product discovery"}}}, "text": false, "textOk": true, "lang": "Korean text unless requested otherwise", "fidelity": "reshoot", "refRole": "scene", "shots": "product"}];
+
+// ---- Account (optional, Supabase) ----
+// Filled in by build_web.py from supabase_config.json; null = no login, everything
+// stays in this browser as before. While someone is signed in, their keys, history,
+// prompt log and costs live under their own storage names ("u:<id>:...") so two
+// people sharing a browser never see each other's data; logging out wipes them.
+const SUPABASE_CFG = {"url": "https://phwvszpxwjggllnqljqr.supabase.co", "key": "sb_publishable_ewwtQT-jLOQLvMnFbFCBHg_fIN5Hx_D"};
+const AUTH_UID = (() => {
+  if (!SUPABASE_CFG) return "";
+  try { return localStorage.getItem("auth_uid") || ""; } catch (e) { return ""; }
+})();
+const nsKey = (k) => (AUTH_UID ? "u:" + AUTH_UID + ":" + k : k);
+// Sync hooks, filled in by the account code at the end of this script.
+const Cloud = {
+  on: false,
+  historyChanged() {}, imagesChanged() {}, imagesDeleted() {},
+  fetchImages: async () => null, stateChanged() {}, keysChanged() {},
+};
 
 const AI_TELL = "no AI-tell artifacts (plastic skin, asymmetry, fused edges, extra digits)";
 // Photo scenarios: lighting follows the scene each template describes (dramatic,
@@ -745,7 +829,7 @@ const OR_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const BACKENDS = {
   gemini: {
-    keyStore: "gemini_api_key",
+    keyStore: nsKey("gemini_api_key"),
     keyLabel: "Gemini API 키",
     keyPlaceholder: "AI Studio에서 발급받은 키",
     defaultModel: "gemini-3.1-flash-image",
@@ -756,7 +840,7 @@ const BACKENDS = {
     lightModelHint: "예: gemini-3.1-flash-lite (기본). 모델을 못 찾으면 위 텍스트 모델로 자동 대체합니다.",
   },
   openrouter: {
-    keyStore: "openrouter_api_key",
+    keyStore: nsKey("openrouter_api_key"),
     keyLabel: "OpenRouter API 키",
     keyPlaceholder: "sk-or-... (openrouter.ai/keys)",
     defaultModel: "google/gemini-2.5-flash-image",
@@ -783,8 +867,21 @@ const refRefs = [];       // 상세페이지: other shops' detail pages — styl
 // Product images go first so the model treats them as the primary subject.
 const allRefs = () => productRefs.concat(styleRefs);
 // Option (color / variant) groups: [{id, name, refs: [...]}]. Shared by both tabs.
+// A product shot tagged with an option name lives in its group's refs instead of
+// productRefs; the product-shot zones show both lists together.
 const variantGroups = [];
 const filledVariants = () => variantGroups.filter((g) => g.refs.length);
+// 주상품으로 고른 옵션 id ("" = 따로 안 고름). 일반 섹션 이미지는 이 묶음을 상품샷으로 쓴다.
+let mainVid = "";
+// Photos that stand for "the product" in non-option images:
+// chosen main option > plain product shots > first option.
+function mainProductRefs() {
+  const mg = mainVid && variantGroups.find((g) => g.id === mainVid && g.refs.length);
+  if (mg) return mg.refs;
+  if (productRefs.length) return productRefs;
+  const g = filledVariants()[0];
+  return g ? g.refs : [];
+}
 
 // ---- Backend switching + per-backend key persistence (best-effort) ----
 function currentBackend() { return BACKENDS[$("backend").value] || BACKENDS.gemini; }
@@ -811,7 +908,7 @@ function applyBackendUI() {
 const textEngine = () => $("textEngine").value;
 const useAnthropic = () => textEngine() === "anthropic";
 const anthropicModelName = () => $("anthropicModel").value.trim() || "claude-opus-5";
-const ANTHROPIC_KEY_STORE = "anthropic_api_key";
+const ANTHROPIC_KEY_STORE = nsKey("anthropic_api_key");
 function applyTextEngineUI() {
   $("anthropicRow").style.display = useAnthropic() ? "" : "none";
   $("textEngineHint").textContent = useAnthropic()
@@ -823,6 +920,7 @@ $("saveAnthropicKey").onclick = () => {
   try {
     localStorage.setItem(ANTHROPIC_KEY_STORE, $("anthropicKey").value.trim());
     setStatus("Claude API 키를 저장했습니다.", "ok");
+    Cloud.keysChanged();
   } catch (e) { setStatus("이 브라우저에서는 저장이 안 됩니다. 키는 입력된 상태로만 유지돼요.", "err"); }
 };
 $("textEngine").onchange = () => { applyTextEngineUI(); saveBackendSettings(); };
@@ -855,6 +953,7 @@ $("savekey").onclick = () => {
   try {
     localStorage.setItem(currentBackend().keyStore, $("apikey").value.trim());
     setStatus("키를 저장했습니다.", "ok");
+    Cloud.keysChanged();
   } catch (e) { setStatus("이 브라우저에서는 저장이 안 됩니다. 키는 입력된 상태로만 유지돼요.", "err"); }
 };
 
@@ -1357,12 +1456,8 @@ const ZONES = {
   ref:     { list: refRefs,     drop: "dropRef",     file: "fileRef",     thumbs: "thumbsRef" },
 };
 const ZONE_KR = { product: "상품샷", product2: "상품샷", product3: "상품샷", style: "레퍼런스", place: "배치할 사진", ref: "레퍼런스 상세페이지" };
-function zoneLabel(z) {
-  if (ZONE_KR[z]) return ZONE_KR[z];
-  const g = ZONES[z] && variantGroups.find((v) => v.refs === ZONES[z].list);
-  return "옵션 '" + ((g && g.name) || "이름 없음") + "'";
-}
-const isDetailZone = (z) => z === "product2" || z === "place" || z === "ref" || z.startsWith("v2_");
+const zoneLabel = (z) => ZONE_KR[z] || z;
+const isDetailZone = (z) => z === "product2" || z === "place" || z === "ref";
 let activeZone = "product";   // where a paste lands
 
 function setActiveZone(z) {
@@ -1398,58 +1493,28 @@ function bindZone(z) {
 Object.keys(ZONES).forEach(bindZone);
 setActiveZone("product");
 
-// ---- option groups UI (rendered in both tabs, same data) ----
+// ---- option groups (from the option name typed under each product shot) ----
 let vseq = 0;
-function addVariantGroup(name, refs) {
-  const g = { id: "g" + Date.now().toString(36) + (vseq++), name: name || "", refs: refs || [] };
-  variantGroups.push(g);
-  renderVariants();
-  return g;
-}
 function setVariants(list) {
   variantGroups.length = 0;
   (list || []).forEach((v) => variantGroups.push({ id: v.id || ("g" + (vseq++)), name: v.name || "", refs: copyRefs(v.refs || []) }));
-  renderVariants();
-}
-function renderVariants() {
-  Object.keys(ZONES).filter((z) => /^v2?_/.test(z)).forEach((z) => delete ZONES[z]);
-  [["variantList", "v_"], ["variantList2", "v2_"]].forEach(([boxId, pre]) => {
-    const box = $(boxId);
-    box.innerHTML = "";
-    variantGroups.forEach((g) => {
-      const key = pre + g.id;
-      const el = document.createElement("div");
-      el.className = "vgroup";
-      el.innerHTML =
-        '<div class="vhead"><input type="text" placeholder="옵션 이름 (예: 아이보리)" aria-label="옵션 이름">' +
-        '<button type="button" class="mini">삭제</button></div>' +
-        '<div class="drop" tabindex="0"></div>' +
-        '<input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>' +
-        '<div class="thumbs"></div>';
-      const name = el.querySelector("input[type=text]");
-      name.value = g.name;
-      name.oninput = () => { g.name = name.value; saveDetailImagesSoon(); };
-      name.onchange = renderVariants;   // sync the other tab's copy
-      el.querySelector(".vhead button").onclick = () => {
-        if (g.refs.length && !confirm("옵션 '" + (g.name || "이름 없음") + "'과 사진 " + g.refs.length + "장을 삭제할까요?")) return;
-        variantGroups.splice(variantGroups.indexOf(g), 1);
-        renderVariants();
-      };
-      el.querySelector(".drop").id = "drop_" + key;
-      el.querySelector("input[type=file]").id = "file_" + key;
-      el.querySelector(".thumbs").id = "thumbs_" + key;
-      box.appendChild(el);
-      ZONES[key] = { list: g.refs, drop: "drop_" + key, file: "file_" + key, thumbs: "thumbs_" + key };
-      bindZone(key);
-    });
-  });
-  if (!ZONES[activeZone]) activeZone = document.body.classList.contains("mode-detail") ? "product2"
-    : document.body.classList.contains("mode-set") ? "product3" : "product";
-  setActiveZone(activeZone);
+  const m = (list || []).find((v) => v.main);
+  mainVid = m && m.id ? m.id : "";
   renderThumbs();
 }
-$("addVariant").onclick = () => { const g = addVariantGroup(); setActiveZone("v_" + g.id); };
-$("addVariant2").onclick = () => { const g = addVariantGroup(); setActiveZone("v2_" + g.id); };
+// Move one product shot to the group named `name` (blank = plain product shot).
+function setRefOption(ref, name) {
+  name = name.trim();
+  const from = variantGroups.find((g) => g.refs.includes(ref));
+  if ((from ? from.name.trim() : "") === name) return;
+  const list = from ? from.refs : productRefs;
+  list.splice(list.indexOf(ref), 1);
+  if (from && !from.refs.length) variantGroups.splice(variantGroups.indexOf(from), 1);
+  if (!name) { productRefs.push(ref); return; }
+  let g = variantGroups.find((v) => v.name.trim() === name);
+  if (!g) { g = { id: "g" + Date.now().toString(36) + (vseq++), name, refs: [] }; variantGroups.push(g); }
+  g.refs.push(ref);
+}
 
 // Paste anywhere (except while typing in a text field) drops into the active zone.
 document.addEventListener("paste", (e) => {
@@ -1490,6 +1555,7 @@ function renderThumbs() {
     const cfg = ZONES[z];
     const box = $(cfg.thumbs);
     box.innerHTML = "";
+    if (z === "product" || z === "product2") { renderProductThumbs(box, z); return; }
     cfg.list.forEach((f, i) => {
       const d = document.createElement("div");
       d.className = "thumb";
@@ -1503,6 +1569,49 @@ function renderThumbs() {
   });
   saveDetailImagesSoon();   // uploaded photos are part of the saved detail draft
   saveSetImagesSoon();      // ...and of the saved smart store set
+}
+
+// Product shots with an optional option name. Plain shots first, then each option's.
+function renderProductThumbs(box, z) {
+  const dl = document.createElement("datalist");
+  dl.id = "optnames_" + z;
+  variantGroups.forEach((g) => { const o = document.createElement("option"); o.value = g.name; dl.appendChild(o); });
+  box.appendChild(dl);
+  const rows = productRefs.map((f) => [f, null]);
+  variantGroups.forEach((g) => g.refs.forEach((f) => rows.push([f, g])));
+  // 사진 묶음(옵션 없는 사진 + 옵션별)이 둘 이상일 때만 주상품 버튼을 보여 준다.
+  const used = mainProductRefs();
+  const choice = (productRefs.length ? 1 : 0) + filledVariants().length > 1;
+  rows.forEach(([f, g]) => {
+    const list = g ? g.refs : productRefs;
+    const isMain = list === used;
+    const w = document.createElement("div");
+    w.className = "pthumb" + (g ? " tagged" : "") + (choice && isMain ? " main" : "");
+    w.innerHTML = '<div class="thumb"><img alt=""><button type="button" aria-label="삭제">×</button></div>' +
+      '<input type="text" placeholder="옵션 (선택)" aria-label="옵션 이름">';
+    w.querySelector("img").src = f.url;
+    if (choice && list[0] === f) {
+      const mb = document.createElement("button");
+      mb.type = "button";
+      mb.className = "main-btn" + (isMain ? " on" : "");
+      mb.textContent = isMain ? "★ 주상품" : "☆ 주상품";
+      mb.title = isMain ? "옵션 섹션이 아닌 모든 이미지가 이 사진을 기준으로 만들어집니다"
+        : "이 " + (g ? "옵션('" + g.name + "')" : "사진") + "을 주상품으로 — 옵션 섹션이 아닌 이미지는 이 사진을 기준으로 만듭니다";
+      mb.onclick = () => { mainVid = g ? g.id : ""; renderThumbs(); updatePreview(); };
+      w.querySelector(".thumb").appendChild(mb);
+    }
+    w.querySelector("button").onclick = () => {
+      list.splice(list.indexOf(f), 1);
+      if (g && !g.refs.length) variantGroups.splice(variantGroups.indexOf(g), 1);
+      renderThumbs(); updatePreview();
+    };
+    const inp = w.querySelector("input");
+    inp.value = g ? g.name : "";
+    inp.setAttribute("list", dl.id);
+    inp.onchange = () => { setRefOption(f, inp.value); renderThumbs(); updatePreview(); };
+    inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } };
+    box.appendChild(w);
+  });
 }
 
 // ---- Status ----
@@ -1532,11 +1641,15 @@ const GEMINI_PRICES = [
   { re: /pro/,                 inp: 2.00, out: 12.0 },
 ];
 const KRW_PER_USD = 1400;   // rough, for display only
-const COST_KEY = "api_cost_v1";   // {since, models: {"<backend>|<model>": {calls, images, usd, est}}}
+const COST_KEY = nsKey("api_cost_v1");   // {since, models: {"<backend>|<model>": {calls, images, usd, est}}}
 let costTotal = {};
 try { costTotal = JSON.parse(localStorage.getItem(COST_KEY) || "{}") || {}; } catch (e) { costTotal = {}; }
 if (!costTotal.models) costTotal = { since: Date.now(), models: {} };
 let costSession = 0;
+function saveCost() {
+  try { localStorage.setItem(COST_KEY, JSON.stringify(costTotal)); } catch (e) {}
+  Cloud.stateChanged();
+}
 
 function geminiCost(model, u) {
   if (!u) return 0;
@@ -1563,7 +1676,7 @@ function trackCost(backend, model, json) {
   const m = costTotal.models[k] || (costTotal.models[k] = { calls: 0, images: 0, usd: 0, est: false });
   m.calls += 1; m.images += nImages; m.usd += usd; m.est = m.est || est;
   costSession += usd;
-  try { localStorage.setItem(COST_KEY, JSON.stringify(costTotal)); } catch (e) {}
+  saveCost();
   renderCost(true);
 }
 // The CLI returns the exact cost of the run, so nothing to estimate.
@@ -1572,7 +1685,7 @@ function trackCostUsd(backend, model, usd) {
   const m = costTotal.models[k] || (costTotal.models[k] = { calls: 0, images: 0, usd: 0, est: false });
   m.calls += 1; m.usd += Number(usd) || 0;
   costSession += Number(usd) || 0;
-  try { localStorage.setItem(COST_KEY, JSON.stringify(costTotal)); } catch (e) {}
+  saveCost();
   renderCost(true);
 }
 function fmtUsd(v) { return "$" + (v < 10 ? v.toFixed(v && v < 0.01 ? 4 : 3) : v.toFixed(2)); }
@@ -1614,26 +1727,57 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("costPop
 $("costReset").onclick = () => {
   if (!confirm("누적 비용 기록을 초기화할까요? (이번 세션 금액도 0으로 돌아갑니다)")) return;
   costTotal = { since: Date.now(), models: {} }; costSession = 0;
-  try { localStorage.setItem(COST_KEY, JSON.stringify(costTotal)); } catch (e) {}
+  saveCost();
   renderCost();
 };
 renderCost();
 
-// ---- Prompt log: every prompt actually sent to a model (last 80, this browser) ----
-const PLOG_KEY = "prompt_log_v1";
+// ---- Prompt log: every prompt actually sent to a model (this browser) ----
+// Entries are grouped by request: a button click that leads to model calls
+// starts a new request, and the calls that follow without another click (a
+// plan's image runs, a fallback retry) join it. The panel shows one request at
+// a time — the latest by default — and the picker lists the earlier ones.
+const PLOG_KEY = nsKey("prompt_log_v1");
+const PLOG_MAX = 200;
 let plog = [];
 try { plog = JSON.parse(localStorage.getItem(PLOG_KEY) || "[]"); } catch (e) { plog = []; }
 function savePlog() {
+  Cloud.stateChanged();
   try { localStorage.setItem(PLOG_KEY, JSON.stringify(plog)); }
   catch (e) {   // quota: keep only the newest entries
-    plog.length = Math.min(plog.length, 15);
+    plog.length = Math.min(plog.length, 30);
     try { localStorage.setItem(PLOG_KEY, JSON.stringify(plog)); } catch (e2) {}
   }
 }
+// The last user click on a button, waiting to open a new request. Clicks that
+// only look at things (tabs, the image viewer, these log panels) don't count, so
+// peeking at results mid-run doesn't split the run in two.
+let plogClick = null;
+document.addEventListener("click", (ev) => {
+  const b = ev.target && ev.target.closest && ev.target.closest("button");
+  if (!b || b.disabled) return;
+  if (b.closest("#plogPanel, #historyPanel, #viewDlg, #promptDlg, [role=tablist]")) return;
+  plogClick = { ts: Date.now(), label: (b.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24) };
+}, true);
+const plogCur = {};   // mode -> current request id
+const plogSel = {};   // mode -> request id picked in the panel (unset = latest)
+function plogReqId(mode, tag) {
+  const c = plogClick;
+  if (c && Date.now() - c.ts < 30000) {
+    plogClick = null;
+    plogCur[mode] = { id: "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), label: c.label || tag || "" };
+    delete plogSel[mode];   // jump to the new request
+  } else if (!plogCur[mode]) {
+    plogCur[mode] = { id: "r" + Date.now().toString(36), label: tag || "" };
+  }
+  return plogCur[mode];
+}
 function logPrompt(kind, tag, model, prompt, nImages) {
-  const e = { ts: Date.now(), kind, tag: tag || "", model, prompt, nImages: nImages || 0, response: "", mode: currentMode() };
+  const mode = currentMode();
+  const r = plogReqId(mode, tag);
+  const e = { ts: Date.now(), kind, tag: tag || "", model, prompt, nImages: nImages || 0, response: "", mode, req: r.id, reqLabel: r.label };
   plog.unshift(e);
-  if (plog.length > 80) plog.length = 80;
+  if (plog.length > PLOG_MAX) plog.length = PLOG_MAX;
   savePlog();
   renderPlog();
   return e;
@@ -1646,27 +1790,73 @@ function plogMode(e) {
   if (/^상세/.test(t)) return "detail";
   return "single";
 }
+// Entries from before requests were tracked: calls less than 90s apart are one request.
+function plogLegacyReq(rows) {
+  let id = null, prev = 0;
+  rows.slice().reverse().forEach((e) => {
+    if (e.req) return;
+    if (!id || e.ts - prev > 90000) id = "old" + e.ts;
+    prev = e.ts;
+    e._req = id;
+  });
+}
 const plogForMode = () => plog.filter((e) => plogMode(e) === currentMode());
+// [{id, ts, label, rows}] newest first; rows inside a request are in call order.
+function plogRequests() {
+  const rows = plogForMode();
+  plogLegacyReq(rows);
+  const map = new Map();
+  rows.forEach((e) => {
+    const id = e.req || e._req;
+    if (!map.has(id)) map.set(id, { id, rows: [] });
+    map.get(id).rows.push(e);
+  });
+  return Array.from(map.values()).map((g) => {
+    g.rows.reverse();
+    const first = g.rows[0];
+    g.ts = first.ts;
+    g.label = first.reqLabel || first.tag || first.kind;
+    return g;
+  });
+}
+const hhmm = (ts) => { const t = new Date(ts); return String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0"); };
+function plogDay(ts) {
+  const t = new Date(ts), n = new Date();
+  return t.toDateString() === n.toDateString() ? "" : (t.getMonth() + 1) + "/" + t.getDate() + " ";
+}
 const plogOpen = new Set();
 function renderPlog() {
   const box = $("plog");
   if (!box) return;
-  const rows = plogForMode();
-  $("plogPanel").style.display = rows.length ? "" : "none";
-  $("plogScope").textContent = modeLabel(currentMode());
+  const mode = currentMode();
+  const reqs = plogRequests();
+  $("plogPanel").style.display = reqs.length ? "" : "none";
+  $("plogScope").textContent = modeLabel(mode);
   box.innerHTML = "";
-  rows.forEach((e) => {
+  if (!reqs.length) return;
+  const cur = reqs.find((g) => g.id === plogSel[mode]) || reqs[0];
+  const sel = $("plogReq");
+  sel.innerHTML = "";
+  reqs.forEach((g, i) => {
+    const o = document.createElement("option");
+    o.value = g.id;
+    o.textContent = (i === 0 ? "최근 · " : "") + plogDay(g.ts) + hhmm(g.ts) + " · " + g.label + " (" + g.rows.length + "건)";
+    sel.appendChild(o);
+  });
+  sel.value = cur.id;
+  const nImg = cur.rows.filter((e) => e.kind === "이미지").length;
+  $("plogReqInfo").textContent = (nImg ? "이미지 " + nImg : "") + (nImg && nImg < cur.rows.length ? " · " : "") +
+    (cur.rows.length - nImg ? "텍스트 " + (cur.rows.length - nImg) : "");
+  cur.rows.forEach((e, i) => {
     const row = document.createElement("div");
     row.className = "plrow";
-    const t = new Date(e.ts);
-    const hh = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
     const head = document.createElement("div");
     head.className = "plhead";
     const b = document.createElement("b");
-    b.textContent = e.kind;
+    b.textContent = (i + 1) + ". " + e.kind;
     const meta = document.createElement("span");
     meta.className = "plmeta";
-    meta.textContent = hh + (e.tag ? " · " + e.tag : "") + " · " + e.model + (e.nImages ? " · 첨부 " + e.nImages + "장" : "");
+    meta.textContent = hhmm(e.ts) + (e.tag ? " · " + e.tag : "") + " · " + e.model + (e.nImages ? " · 첨부 " + e.nImages + "장" : "");
     head.appendChild(b); head.appendChild(meta);
     row.appendChild(head);
     if (plogOpen.has(e.ts)) {
@@ -1693,12 +1883,20 @@ function renderPlog() {
     box.appendChild(row);
   });
 }
+$("plogReq").onchange = () => {
+  const mode = currentMode();
+  const reqs = plogRequests();
+  const v = $("plogReq").value;
+  if (reqs.length && v === reqs[0].id) delete plogSel[mode]; else plogSel[mode] = v;
+  renderPlog();
+};
 $("plogClear").onclick = () => {
   const mode = currentMode();
   const drop = plogForMode();
   if (!drop.length) return;
-  if (!confirm("'" + modeLabel(mode) + "' 프롬프트 로그 " + drop.length + "건을 지울까요? (다른 탭 로그는 그대로 둡니다)")) return;
+  if (!confirm("'" + modeLabel(mode) + "' 프롬프트 로그 " + drop.length + "건(모든 요청)을 지울까요? (다른 탭 로그는 그대로 둡니다)")) return;
   plog = plog.filter((e) => plogMode(e) !== mode);
+  delete plogCur[mode]; delete plogSel[mode];
   savePlog();
   renderPlog();
 };
@@ -2033,16 +2231,17 @@ $("editgo").onclick = async () => {
 // too big for it, so they go to IndexedDB keyed by the entry id.
 // Names the set tab everywhere: history rows, tab label, saved entries.
 const SS_KIND = "스마트스토어 세트";
-const HKEY = "gen_history_v1";
+const HKEY = nsKey("gen_history_v1");
 let history = [];
 try { history = JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) { history = []; }
 function backendLabel(b) { return b === "openrouter" ? "OpenRouter" : "Gemini"; }
 
+const HIST_DB = "gen_history_images" + (AUTH_UID ? ":" + AUTH_UID : "");
 let idbPromise = null;
 function idb() {
   if (!idbPromise) {
     idbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open("gen_history_images", 1);
+      const req = indexedDB.open(HIST_DB, 1);
       req.onupgradeneeded = () => req.result.createObjectStore("imgs");
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -2062,9 +2261,11 @@ async function idbDo(mode, fn) {
     } catch (e) { resolve(null); }
   });
 }
-const imgGet = (id) => idbDo("readonly", (s) => s.get(id));
-const imgPut = (id, v) => idbDo("readwrite", (s) => s.put(v, id));
-const imgDel = (id) => idbDo("readwrite", (s) => s.delete(id));
+const imgGetLocal = (id) => idbDo("readonly", (s) => s.get(id));
+// Signed in: images missing here (made on another device) come from the account.
+const imgGet = async (id) => (await imgGetLocal(id)) || Cloud.fetchImages(id);
+const imgPut = (id, v) => { Cloud.imagesChanged(id); return idbDo("readwrite", (s) => s.put(v, id)); };
+const imgDel = (id) => { Cloud.imagesDeleted(id); return idbDo("readwrite", (s) => s.delete(id)); };
 const imgClear = () => idbDo("readwrite", (s) => s.clear());
 
 const copyRefs = (list) => list.map((f) => ({ name: f.name, mime: f.mime, b64: f.b64, url: f.url }));
@@ -2075,6 +2276,7 @@ function saveHistory() {
       const c = Object.assign({}, h); delete c.thumb; return c;
     })));
   } catch (e) {}
+  Cloud.historyChanged();
 }
 // images: {outputs: [url], product: [ref], style: [ref]}
 function addHistory(entry, images) {
@@ -2096,7 +2298,7 @@ function addHistory(entry, images) {
 function loadHistoryThumbs() {
   history.forEach((h) => {
     if (h.thumb || !h.id) return;
-    imgGet(h.id).then((rec) => {
+    imgGetLocal(h.id).then((rec) => {
       if (rec && rec.outputs && rec.outputs[0]) { h.thumb = rec.outputs[0]; renderHistory(); }
     });
   });
@@ -2128,9 +2330,9 @@ function renderHistory() {
   rows.forEach((h) => {
     const row = document.createElement("div");
     row.className = "hrow";
-    if (h.thumb) {
+    if (h.thumb || h.mini) {
       const im = document.createElement("img");
-      im.src = h.thumb;
+      im.src = h.thumb || h.mini;
       row.appendChild(im);
     } else {
       const ph = document.createElement("div");
@@ -2207,7 +2409,6 @@ $("go").onclick = async () => {
   const apiKey = $("apikey").value.trim();
   if (!apiKey) { setStatus("API 키를 입력하세요.", "err"); return; }
   const groups = filledVariants();
-  if (variantGroups.length && !groups.length) { setStatus("옵션별 상품샷에 사진을 넣어주세요 (또는 빈 옵션을 삭제하세요).", "err"); return; }
   if (!$("subject").value.trim() && !allRefs().length && !groups.length) {
     setStatus("상품 설명이나 참조 이미지 중 하나는 필요합니다.", "err"); return;
   }
@@ -2237,7 +2438,7 @@ $("go").onclick = async () => {
   const allUrls = [], allPrompts = [];
   const refsAtSend = {
     product: copyRefs(productRefs), style: copyRefs(styleRefs),
-    variants: groups.map((g) => ({ id: g.id, name: g.name, refs: copyRefs(g.refs) })),
+    variants: groups.map((g) => ({ id: g.id, name: g.name, refs: copyRefs(g.refs), main: g.id === mainVid })),
   };
   try {
     // Camera angle per shot — shared by every option so the option set lines up.
@@ -2289,7 +2490,7 @@ $("go").onclick = async () => {
       const p = [
         buildPrompt({ s, vkey, subject: subject + (st.name ? " (option: " + st.name + ")" : ""),
           extra, fill, nProduct: st.refs.length, nStyle: styleRefs.length }),
-        st.name ? "option: this image is for the '" + st.name + "' option — the product's color, material, and finish must exactly match the product photo(s) of this option" : "",
+        st.name ? "option: this image is for the '" + st.name + "' option — the product's color, material, and finish must exactly match the product photo(s) of this option; " + OPTION_COLOR_OVERRIDE : "",
         viewLine,
         sh ? variationLine(sh, i, shots.length, kind) : "",
         notesLine(notes),
@@ -2441,8 +2642,34 @@ const DP_CSS = `
 .lp-minimal .dp-label{border-radius:0;border-width:1px}
 .lp-minimal .dp-card,.lp-minimal .dp-step{border-radius:0;background:transparent !important;border:1px solid var(--dp-line,#e3e1dc)}
 .lp-minimal .dp-t-closing{background:var(--dp-bg,#fff);color:var(--dp-ink,#191919);border-top:1px solid var(--dp-line,#e3e1dc)}
+/* section placement — chosen per section; sits after the presets so it wins at equal specificity */
+.dp-page .dp-sec.dp-place-above>.dp-img,.dp-page .dp-sec.dp-place-above>.dp-imgs{margin-top:0;margin-bottom:52px}
+.dp-page .dp-t-hero.dp-place-above.has-media{padding-top:0;padding-bottom:100px}
+.dp-page .dp-t-hero.dp-place-above>.dp-img{margin-top:0;margin-bottom:56px}
+.dp-page .dp-sec.dp-place-left.has-media,.dp-page .dp-sec.dp-place-right.has-media{display:grid;grid-template-columns:1fr 1fr;column-gap:48px;align-items:center;align-content:center;text-align:left}
+.dp-page .dp-sec.dp-place-left.has-media>*{grid-column:2}
+.dp-page .dp-sec.dp-place-right.has-media>*{grid-column:1}
+.dp-page .dp-sec.dp-place-left.has-media>.dp-img,.dp-page .dp-sec.dp-place-left.has-media>.dp-imgs{grid-column:1;grid-row:1/span 6;margin:0}
+.dp-page .dp-sec.dp-place-right.has-media>.dp-img,.dp-page .dp-sec.dp-place-right.has-media>.dp-imgs{grid-column:2;grid-row:1/span 6;margin:0}
+.dp-page .dp-sec.dp-place-left.has-media .dp-body,.dp-page .dp-sec.dp-place-right.has-media .dp-body{margin-left:0}
+/* split preset: a section set to above/below stacks (this also un-squeezes multi-image sections) */
+.lp-split .dp-sec.dp-place-above,.lp-split .dp-sec.dp-place-below{display:block;text-align:center}
+.lp-split .dp-sec.dp-place-above .dp-body,.lp-split .dp-sec.dp-place-below .dp-body{margin-left:auto}
+.lp-split .dp-sec.dp-place-below>.dp-img{margin-top:52px;grid-row:auto}
+/* section background — chosen per section (no .alt on these, see renderSection) */
+.dp-page .dp-sec.dp-bg-white{background:var(--dp-bg,#fff);color:var(--dp-ink,#191919)}
+.dp-page .dp-sec.dp-bg-alt{background:var(--dp-alt,#f5f4f1);color:var(--dp-ink,#191919)}
+.dp-page .dp-sec.dp-bg-dark{background:var(--dp-ink,#191919);color:var(--dp-bg,#fff)}
+.dp-page .dp-sec.dp-bg-accent{background:var(--dp-accent);color:#fff}
+.dp-page .dp-bg-alt .dp-card,.dp-page .dp-bg-alt .dp-step{background:var(--dp-bg,#fff)}
+.dp-page .dp-bg-dark .dp-card,.dp-page .dp-bg-dark .dp-step,.dp-page .dp-bg-accent .dp-card,.dp-page .dp-bg-accent .dp-step{background:rgba(255,255,255,.1)}
+.dp-page .dp-bg-dark .dp-sub,.dp-page .dp-bg-dark .dp-body,.dp-page .dp-bg-dark .dp-cx,.dp-page .dp-bg-dark .dp-a,.dp-page .dp-bg-dark .dp-row .k,.dp-page .dp-bg-dark .dp-cmp-row .other,.dp-page .dp-bg-dark .dp-cmp-row>*:first-child,.dp-page .dp-bg-dark .dp-cmp-row.head,.dp-page .dp-bg-accent .dp-sub,.dp-page .dp-bg-accent .dp-body,.dp-page .dp-bg-accent .dp-cx,.dp-page .dp-bg-accent .dp-a,.dp-page .dp-bg-accent .dp-row .k,.dp-page .dp-bg-accent .dp-cmp-row .other,.dp-page .dp-bg-accent .dp-cmp-row>*:first-child,.dp-page .dp-bg-accent .dp-cmp-row.head{color:inherit;opacity:.8}
+.dp-page .dp-bg-dark .dp-spec,.dp-page .dp-bg-dark .dp-faq,.dp-page .dp-bg-dark .dp-cmp,.dp-page .dp-bg-accent .dp-spec,.dp-page .dp-bg-accent .dp-faq,.dp-page .dp-bg-accent .dp-cmp{border-top-color:currentColor}
+.dp-page .dp-bg-accent .dp-eyebrow,.dp-page .dp-bg-accent .dp-num,.dp-page .dp-bg-accent .dp-qm,.dp-page .dp-bg-accent .dp-cmp-row.head>*:nth-child(2){color:#fff}
+.dp-page .dp-bg-accent .dp-label{color:#fff;border-color:#fff}
+.dp-page .dp-bg-accent .dp-step .n{background:#fff;color:var(--dp-accent)}
 `;
-const DP_CSS_MOBILE = `@media (max-width:880px){.dp-page{width:100%}.dp-sec,.lp-magazine .dp-sec,.lp-minimal .dp-sec{padding:64px 22px}.dp-h,.lp-magazine .dp-h,.lp-bold .dp-h,.lp-minimal .dp-h{font-size:30px}.dp-t-hero .dp-h,.lp-magazine .dp-t-hero .dp-h,.lp-bold .dp-t-hero .dp-h{font-size:36px}.dp-t-hero .dp-img,.lp-magazine .dp-t-hero .dp-img{margin:40px -22px 0}.lp-magazine .dp-img{margin-left:-22px;margin-right:-22px}.lp-split .dp-sec.has-img{display:block}.lp-split .dp-sec.has-img>.dp-img{margin-top:40px}.dp-grid{grid-template-columns:1fr}.dp-row .k{flex-basis:96px}.dp-cmp-row{gap:10px;font-size:15px}.dp-cmp-row>*:first-child{flex-basis:80px}.dp-q{font-size:17px}.dp-a{font-size:15px}.dp-imgs.lay-row{flex-direction:column}.dp-imgs.lay-mosaic{grid-template-columns:1fr;grid-template-rows:none}.dp-imgs.lay-mosaic.n3>.dp-img:first-child{grid-row:auto}}`;
+const DP_CSS_MOBILE = `@media (max-width:880px){.dp-page{width:100%}.dp-sec,.lp-magazine .dp-sec,.lp-minimal .dp-sec{padding:64px 22px}.dp-h,.lp-magazine .dp-h,.lp-bold .dp-h,.lp-minimal .dp-h{font-size:30px}.dp-t-hero .dp-h,.lp-magazine .dp-t-hero .dp-h,.lp-bold .dp-t-hero .dp-h{font-size:36px}.dp-t-hero .dp-img,.lp-magazine .dp-t-hero .dp-img{margin:40px -22px 0}.lp-magazine .dp-img{margin-left:-22px;margin-right:-22px}.lp-split .dp-sec.has-img{display:block}.lp-split .dp-sec.has-img>.dp-img{margin-top:40px}.dp-grid{grid-template-columns:1fr}.dp-row .k{flex-basis:96px}.dp-cmp-row{gap:10px;font-size:15px}.dp-cmp-row>*:first-child{flex-basis:80px}.dp-q{font-size:17px}.dp-a{font-size:15px}.dp-imgs.lay-row{flex-direction:column}.dp-imgs.lay-mosaic{grid-template-columns:1fr;grid-template-rows:none}.dp-imgs.lay-mosaic.n3>.dp-img:first-child{grid-row:auto}.dp-page .dp-sec.dp-place-left.has-media,.dp-page .dp-sec.dp-place-right.has-media{display:block}.dp-page .dp-sec.dp-place-left.has-media>.dp-img,.dp-page .dp-sec.dp-place-left.has-media>.dp-imgs,.dp-page .dp-sec.dp-place-right.has-media>.dp-img,.dp-page .dp-sec.dp-place-right.has-media>.dp-imgs{margin-top:40px}.dp-page .dp-t-hero.dp-place-above.has-media{padding-bottom:64px}.dp-page .dp-t-hero.dp-place-above>.dp-img{margin-bottom:40px}}`;
 const DP_LAYOUTS = {
   classic: { kr: "클래식", desc: "가운데 정렬, 흰 바탕과 옅은 섹션이 번갈아 나옴, 둥근 사진 — 무난한 스마트스토어형" },
   magazine: { kr: "매거진", desc: "왼쪽 정렬 텍스트, 큰 여백, 가장자리까지 꽉 찬 사진 — 에디토리얼·브랜드 느낌" },
@@ -2458,6 +2685,19 @@ const DP_RATIOS = ["4:5", "1:1", "3:4", "4:3", "16:9"];
 const DP_MAX_IMG = 3;                 // images per section
 const DP_IMG_LAYOUTS = { row: "나란히 (같은 크기)", mosaic: "크게+작게", stack: "세로로" };
 const DP_LAY_ALIAS = { grid: "mosaic" };   // older drafts said "grid"
+// 섹션 구성 — 섹션마다 따로 고른다. 비워 두면 페이지 레이아웃이 정한다.
+const DP_PLACES = { "": "배치: 자동", above: "이미지 위", below: "이미지 아래", left: "이미지 왼쪽", right: "이미지 오른쪽" };
+// hero 사진은 가장자리까지 꽉 차게 깔리는 자리라 글 옆에 세우는 배치가 어울리지 않는다.
+const dpPlaceKeys = (s) => (s.type === "hero" ? ["", "above", "below"] : Object.keys(DP_PLACES));
+const DP_BGS = { "": "배경: 자동", white: "흰색", alt: "옅은 색", dark: "어둡게", accent: "포인트 색" };
+// 새로 넣을 수 있는 섹션. hero·closing은 페이지에 하나씩이고, options는 옵션별 상품샷에 묶여 있어 뺐다.
+const DP_ADDABLE = ["feature", "detail", "wear", "grid", "steps", "compare", "faq", "spec"];
+// 빈 섹션 틀. normalizePlan을 거치면 기획 모델이 만든 섹션과 같은 모양(이미지 슬롯·기본 시나리오 포함)이 된다.
+const DP_BLANK = {
+  feature: { label: "POINT", image: {} }, detail: { image: {} }, wear: { image: {} },
+  grid: { items: [{}, {}, {}] }, steps: { items: [{}, {}, {}] }, faq: { items: [{}, {}] },
+  spec: { rows: [{}, {}, {}] }, compare: { rows: [{}, {}, {}] },
+};
 // Column ratio of the mosaic layout: one image leads, the rest support it.
 const DP_MOSAIC = 1.6;
 // Image slot storage key. Slot 0 keeps the bare section id so older saved
@@ -2465,32 +2705,92 @@ const DP_MOSAIC = 1.6;
 const imgKey = (s, k) => (k ? s.id + "#img" + k : s.id);
 const DP_PAGE_W = 860;                // .dp-page width, so the display size is known up front
 const DP_IMG_GAP = 12;
+// 이미지를 글 옆에 세우는 섹션의 이미지 칸 폭: 섹션 좌우 여백(72px씩)과 칸 사이(48px)를 뺀 절반.
+const DP_HALF_W = Math.round((DP_PAGE_W - 2 * 72 - 48) / 2);
+// 섹션의 실제 글·이미지 배치. 직접 고른 값이 먼저고, 없으면 페이지 레이아웃이 정한다 —
+// '좌우 분할'은 사진 한 장짜리 특징·디테일 섹션을 번갈아 좌우에 놓는다(CSS .lp-split와 같은 규칙).
+function dpPlace(s, i) {
+  if (s.place && dpPlaceKeys(s).includes(s.place)) return s.place;
+  if (dplan && dplan.style.layout === "split" && (s.type === "feature" || s.type === "detail") && (s.images || []).length === 1)
+    return i % 2 === 1 ? "left" : "right";
+  return "below";
+}
 // How wide this slot actually renders, and the pixel box that follows from its ratio.
 function slotPx(s, k) {
   const n = (s.images || []).length || 1;
   const lay = n > 1 ? (s.imageLayout || "row") : "stack";
-  const free = DP_PAGE_W - DP_IMG_GAP;
+  // 글 옆에 세우면 이미지 칸이 절반으로 준다 — 생성 크기와 프롬프트의 표시 크기가 이걸 따른다.
+  const place = dpPlace(s, dplan ? dplan.sections.indexOf(s) : -1);
+  const area = place === "left" || place === "right" ? DP_HALF_W : DP_PAGE_W;
+  const free = area - DP_IMG_GAP;
   let w;
   if (lay === "mosaic") {
     // slot 0 leads at DP_MOSAIC:1; the rest share the narrow column
     w = Math.round(free * (k === 0 ? DP_MOSAIC : 1) / (DP_MOSAIC + 1));
   } else if (lay === "row") {
-    w = Math.round((DP_PAGE_W - DP_IMG_GAP * (n - 1)) / n);
+    w = Math.round((area - DP_IMG_GAP * (n - 1)) / n);
   } else {
-    w = DP_PAGE_W;
+    w = area;
   }
   const r = ((s.images[k] || {}).ratio || "1:1").split(":").map(Number);
   return { w, h: Math.round(w * (r[1] || 1) / (r[0] || 1)), lead: lay === "mosaic" && k === 0 };
 }
 // Gemini takes 1K/2K/4K, not exact pixels — ask for 2K only when the slot is wide.
 const slotSizeHint = (s, k) => (slotPx(s, k).w >= 600 ? "2K" : "1K");
-const DP_IMG_SCENARIOS = ["hero-image", "lifestyle-scene", "detail-macro", "model-showcase", "try-on-virtual",
-  "flat-lay", "luxury-atmospherics", "packaging", "gift-set", "multi-product", "ugc-style",
-  "creative-concept", "ghost-mannequin", "device-mockup"].filter((id) => SCENARIOS.some((x) => x.id === id));
+// 상세페이지에서 고를 수 있는 시나리오. 39종 중 두 부류만 일부러 뺐다:
+//  · 편집 전용(edit-*, bulk-*, transparent-cutout, motion-gif) — 이미 있는 이미지를
+//    고치는 시나리오라 빈 자리에 새로 그릴 수 없다.
+//  · 글이 주인공인 것(infographic, poster-banner, comparison-chart, size-spec,
+//    before-after, a-plus-modules, exploded-view) — 상세페이지는 헤드라인·본문을
+//    HTML로 얹고 이미지 안 글자는 금지하므로, 라벨·수치·카피를 그려 넣는 템플릿과
+//    정면으로 부딪힌다.
+// 각 줄의 한국어 설명은 기획 프롬프트(planPrompt)의 scenario 목록으로도 쓰인다.
+const DP_SCN_GROUPS = [
+  ["기본 컷", [
+    ["hero-image", "제품이 무엇인지 한눈에. hero 섹션에 적합"],
+    ["lifestyle-scene", "실제 공간에서 쓰는 분위기"],
+    ["detail-macro", "소재·질감·마감·봉제·표면을 확대해 보여줄 때"],
+    ["model-showcase", "사람이 입거나 들거나 작동시키는 장면. 크기 가늠에도 좋다"],
+    ["try-on-virtual", "착용 결과를 보여줘야 하는데 모델컷이 없을 때"],
+    ["ghost-mannequin", "의류·가방의 형태만 띄워 보여줄 때"],
+    ["flat-lay", "구성품·세트를 위에서 펼쳐 한눈에"],
+  ]],
+  ["구성·세트", [
+    ["multi-product", "여러 개·여러 용량·여러 색을 나란히"],
+    ["gift-set", "선물 용도를 말하는 섹션"],
+    ["packaging", "박스·라벨·포장 자체가 구매 이유일 때"],
+    ["packaging-unbox", "포장을 여는 순서·겹을 단계로 보여줄 때"],
+    ["multi-angle-grid", "앞·뒤·옆 같은 여러 각도를 한 칸씩 격자로"],
+    ["seasonal-campaign", "사계절·시즌별로 같은 제품을 네 칸에"],
+  ]],
+  ["무드·컨셉", [
+    ["luxury-atmospherics", "고급감·소재감이 주된 구매 이유일 때"],
+    ["creative-concept", "은유·과장된 연출로 시선을 끌 때"],
+    ["magazine-editorial", "잡지 화보 같은 톤으로 브랜드 격을 올릴 때"],
+    ["brand-story", "만드는 과정·원산지·장인정신을 다큐처럼"],
+    ["sports-campaign", "운동·활동 중 쓰는 역동적인 장면"],
+    ["storefront", "매장·공방·작업 공간을 보여줄 때"],
+  ]],
+  ["실사용·기기", [
+    ["ugc-style", "실사용 후기 같은 날것의 느낌"],
+    ["social-media", "SNS 피드에 올린 듯한 스냅"],
+    ["device-mockup", "화면·앱·전자기기 UI를 보여줄 때"],
+  ]],
+].map(([g, rows]) => [g, rows.filter(([id]) => SCENARIOS.some((x) => x.id === id))]).filter(([, rows]) => rows.length);
+const DP_IMG_SCENARIOS = DP_SCN_GROUPS.flatMap(([, rows]) => rows.map(([id]) => id));
+// 기획 프롬프트에 넣는 scenario 목록. 세부 스타일(variant) 키까지 같이 알려줘야
+// 텍스트 모델이 쓸 수 있는 값만 고른다. scenarioById는 아직 선언 전이라 직접 찾는다.
+const DP_SCN_LINES = DP_SCN_GROUPS.flatMap(([group, rows]) => ["  [" + group + "]"].concat(
+  rows.map(([id, why]) => {
+    const sc = SCENARIOS.find((x) => x.id === id);
+    const vs = Object.keys(sc.variants || {});
+    return "  · " + id + "(" + sc.kr + ") — " + why + (vs.length ? " [variant: " + vs.join(", ") + "]" : "");
+  })));
 const DP_DEFAULT_SCN = { hero: "hero-image", feature: "lifestyle-scene", detail: "detail-macro", wear: "model-showcase" };
 // These get a picture slot automatically.
 const DP_IMG_TYPES = Object.keys(DP_DEFAULT_SCN);
-// closing may end on a picture when the model asks for one — it just never gets one by default.
+// closing is text-only from the model (parsePlan strips it); the seller can still add
+// one by hand, and drafts that already have one keep it.
 // grid/steps/compare/faq/spec are read, not looked at, so a stray image there is dropped.
 const DP_IMG_OK = DP_IMG_TYPES.concat("closing");
 // Sections the seller can turn on or off. hero and closing always run, so they are not here.
@@ -2547,7 +2847,7 @@ const DP_TONES = {
 };
 const H2C_URL = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
 const PRETENDARD_URL = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css";
-const DKEY = "detail_state_v1";
+const DKEY = nsKey("detail_state_v1");
 const scenarioById = (id) => SCENARIOS.find((x) => x.id === id);
 
 let dplan = null;          // {product_en, concept, product_views, product_notes, negative, style:{accent, visual, adjust}, sections:[...]}
@@ -2620,13 +2920,13 @@ function saveDetailImagesSoon() {
     const ids = Object.keys(dimgs).filter((k) => dplan.sections.some((x) => k === x.id || k.startsWith(x.id + "#")));
     const sig = e.id + "|" + ids.map((id) => id + ":" + dimgs[id].length).join(",") +
       "|" + productRefs.map((f) => f.b64.length).join(",") + "|" + placeRefs.map((f) => f.b64.length).join(",") +
-      "|" + variantGroups.map((g) => g.id + g.name + ":" + g.refs.map((f) => f.b64.length).join(",")).join(";");
+      "|" + variantGroups.map((g) => g.id + g.name + ":" + g.refs.map((f) => f.b64.length).join(",")).join(";") + "|" + mainVid;
     if (sig === dimgSig) return;
     dimgSig = sig;
     const saved = {};
     ids.forEach((id) => { saved[id] = dimgs[id]; });
     imgPut(e.id, { outputs: ids.length ? [dimgs[ids[0]]] : [], product: copyRefs(productRefs), place: copyRefs(placeRefs), dimgs: saved,
-      variants: variantGroups.map((g) => ({ id: g.id, name: g.name, refs: copyRefs(g.refs) })) });
+      variants: variantGroups.map((g) => ({ id: g.id, name: g.name, refs: copyRefs(g.refs), main: g.id === mainVid })) });
     const nImg = dplan.sections.reduce((n, x) => n + (x.images || []).length, 0);
     e.thumb = ids.length ? dimgs[ids[0]] : null;
     e.nImg = ids.length;
@@ -2873,38 +3173,40 @@ function planPrompt(name, info, tone, count, nImages, nPlace, optionNames, brief
     "",
     "image 규칙:",
     "- image는 hero·feature·detail·wear에 넣는다. grid·steps·compare·faq·spec에는 넣지 마라 — 글과 표로 읽는 자리다.",
-    "- closing은 글로 마무리하는 게 기본이다. 마지막을 사진으로 닫는 편이 분명히 나을 때만 image를 넣어라.",
+    "- closing에는 image를 넣지 마라. 마지막은 글로 마무리한다.",
     "- 이미지 섹션만으로 페이지를 채우지 마라. 글로 읽는 섹션을 섞어 리듬을 만들어라. 이미지가 붙는 섹션이 세 번 연속되면 그 사이에 글 섹션을 하나 넣어라.",
     "- image = {scenario, ratio, note, direction}. 한 섹션에 사진이 여러 장 필요하면 image 대신 images: [ {...}, {...} ] 로 최대 3장까지 쓰고, imageLayout에 \"row\"(나란히) 또는 \"grid\"(격자)를 적어라." + (nPlace ? " (+ 배치할 사진을 쓰면 use: 사진 번호)" : ""),
     "- scenario는 그 섹션이 맡은 일에 맞춰 골라라. 전부 hero-image나 lifestyle-scene으로 몰지 마라:",
-    "  · hero-image(흰배경 대표이미지) — 제품이 무엇인지 한눈에. hero 섹션에 적합",
-    "  · detail-macro(디테일 접사) — 소재·질감·마감·봉제·표면을 확대해 보여줄 때",
-    "  · lifestyle-scene(라이프스타일 연출컷) — 실제 공간에서 쓰는 분위기",
-    "  · model-showcase(모델 착용/시연컷) — 사람이 입거나 들거나 작동시키는 장면. 크기 가늠에도 좋다",
-    "  · try-on-virtual(가상 착용/장면 합성) — 착용 결과를 보여줘야 하는데 모델컷이 없을 때",
-    "  · ghost-mannequin(고스트 마네킹) — 의류·가방의 형태만 띄워 보여줄 때",
-    "  · flat-lay(플랫레이) — 구성품·세트를 위에서 펼쳐 한눈에",
-    "  · multi-product(다중 상품 세트) — 여러 개·여러 용량·여러 색을 나란히",
-    "  · packaging(패키지 디자인 연출) — 박스·라벨·포장 자체가 구매 이유일 때",
-    "  · gift-set(기프트 세트/선물 연출) — 선물 용도를 말하는 섹션",
-    "  · luxury-atmospherics(럭셔리 무드) — 고급감·소재감이 주된 구매 이유일 때",
-    "  · ugc-style(UGC/구매후기 스타일) — 실사용 후기 같은 날것의 느낌",
-    "  · creative-concept(크리에이티브 컨셉 광고) — 은유·과장된 연출로 시선을 끌 때",
-    "  · device-mockup(디바이스 목업) — 화면·앱·전자기기 UI를 보여줄 때",
+    ...DP_SCN_LINES,
     "  같은 scenario를 연달아 두 번 쓰지 마라. 상품과 무관한 scenario는 고르지 마라(의류가 아니면 ghost-mannequin, 전자기기가 아니면 device-mockup 금지).",
+    "- variant(세부 스타일)는 선택이다. 위 목록에서 그 scenario 뒤 [ ] 안에 적힌 키 중 하나만 쓸 수 있고, 어울리는 것이 없으면 넣지 마라.",
+    "  variant는 그 컷의 연출만 바꾼다 — 페이지 전체의 색감·무드는 style.visual이 잡으므로, variant로 페이지 톤을 흔들려 하지 마라.",
     "- ratio는 \"4:5\", \"1:1\", \"3:4\", \"4:3\", \"16:9\" 중 하나 (hero는 4:5 권장)",
-    "- 이 상세페이지에서 최소 한 섹션은 images(2~3장)로 구성해라. 아래에 해당하는 섹션이 있으면 반드시 그렇게 해라:",
-    "  · 각도가 여럿일 때(앞/뒤/옆, 위/아래) · 착용이나 사용 상황이 여럿일 때 · 볼 곳이 여럿일 때(겉감/안감, 이음새/표면) · 전/후를 나란히 봐야 할 때 · 색상이나 크기를 비교해야 할 때",
-    "  해당하는 섹션이 정말 하나도 없을 때만 전부 한 장으로 간다. hero와 closing은 언제나 한 장이다.",
+    "- 한 장이 기본이다. 여러 장을 나란히 놓으면 그만큼 자리가 좁아져 제품의 세부 디테일이 뭉개지므로, 개수를 채우려고 images를 쓰지 마라.",
+    "  나란히 놓아야만 뜻이 통하는 섹션에서만 images(2~3장)를 써라 — 여러 각도를 같이 봐야 할 때, 겉감/안감처럼 볼 곳이 나뉠 때, 전/후나 색상·크기를 나란히 비교해야 할 때.",
+    "  그런 섹션이 없으면 전부 한 장으로 간다. hero는 언제나 한 장이다.",
     "- images를 쓸 때는 imageLayout도 같이 적어라: \"row\"(같은 크기로 나란히) 또는 \"mosaic\"(첫 장을 크게, 나머지를 작게). 3장이면 mosaic이 보기 좋다.",
     "- 한 섹션 안의 사진이 같은 크기·같은 비율일 필요는 없다. mosaic을 쓸 때는 첫 장에 가장 보여주고 싶은 컷을 놓고 ratio도 장마다 어울리게 달리 정해라(예: 첫 장 4:5, 작은 두 장 1:1).",
     "- 여러 장일 때 각 장의 direction은 서로 확실히 다르게 쓰되(다른 각도·다른 부위·다른 순간), 조명·배경·무드는 같은 계열로 맞춰 나란히 놨을 때 한 세트로 보이게 하라. note도 장마다 따로 써라.",
     "- note는 판매자가 읽을 한국어 한 문장이다. 이 섹션에 '어떤 사진이 왜 필요한지'를 적어라 — 판매자가 직접 찍거나 갖고 있는 사진을 고를 때 판단 근거가 된다. (예: 발가락 사이가 벌어진 모습을 위에서 찍은 클로즈업. 분리형 구조가 보여야 합니다.)",
     "- direction은 이미지 모델에 그대로 들어가는 영어 1~2문장: 장면, 배경 소재, 소품, 조명, 카메라 거리·각도, 사람 유무를 구체적으로. 섹션끼리 구도·장면이 겹치지 않게. 이미지 안에 글자·로고·배지를 넣지 않는다.",
+    "  단, hero-image(흰배경 대표이미지)를 기본 스타일로 쓰는 자리는 예외다 — 흰 바탕에 제품만 놓는 누끼 컷이니 direction에 공간·배경·소품·사람을 적지 마라. 제품의 각도, 화면에서 차지하는 크기, 그림자 정도만 적어라.",
     ...(nImages ? [
       "- 상품샷에서 확실히 보이는 제품의 면을 product_views에 적고(front, back, side, top, bottom 중), direction은 그 면들만 보이는 구도로 써라.",
       "  사진에 없는 면(예: 밑창, 뒷면)이 드러나는 장면은 만들지 마라 — 이미지 모델이 실제와 다른 디테일을 지어낸다.",
     ] : []),
+    "",
+    "배치 규칙 (섹션마다 글·이미지 배치와 배경을 정한다 — 페이지가 단조롭지 않게, 역할에 맞게):",
+    "- place: 이미지가 있는 섹션에서 글과 이미지의 위치. \"above\"(이미지가 글 위) / \"below\"(이미지가 글 아래) / \"left\"(이미지 왼쪽, 글 오른쪽) / \"right\"(이미지 오른쪽, 글 왼쪽).",
+    "  hero는 above나 below만 쓴다. left·right는 이미지가 한 장이고 body가 있는 feature·detail·wear에서만 쓴다 — 자리가 절반으로 줄어 여러 장이면 뭉개진다.",
+    "  left·right를 쓰는 섹션이 이어지면 좌우를 번갈아 써서 지그재그로 읽히게 하라. 크게 보여야 할 컷(질감·착용 전신·여러 장)은 above/below로 크게 둔다.",
+    "- bg: 섹션 배경. \"white\"(흰색) / \"alt\"(옅은 색) / \"dark\"(어둡게) / \"accent\"(포인트 색). 모든 섹션에 적어라.",
+    "  이웃한 섹션끼리 같은 배경이 길게 이어지지 않게 white와 alt를 섞어 섹션 경계를 만들어라.",
+    "  dark·accent는 페이지 전체에서 합쳐 1~2개만 — 가장 강조할 섹션(핵심 구매 이유, 마무리 등)에만 쓴다. 누끼 컷(hero-image 기본 스타일)이 들어간 섹션은 white로 둔다.",
+    ...(brief ? [] : [
+      "- style.layout: 페이지 전체 레이아웃 하나 — " + Object.entries(DP_LAYOUTS).map(([k, v]) => k + "(" + v.desc + ")").join(" / "),
+      "  2)의 성사 동력과 컨셉에 맞춰 골라라(예: 시각·질감 → magazine·minimal, 사양·성능 → bold·split, 신뢰·증거 → classic·split).",
+    ]),
     "",
     "최상위 필드:",
     "- concept: {name: 컨셉 이름(한국어, 짧게), driver: 2)에서 고른 주동력 이름(한국어, 예: 신뢰·증거), summary: 타깃·무드·핵심 메시지 한두 문장(한국어)}",
@@ -2913,7 +3215,7 @@ function planPrompt(name, info, tone, count, nImages, nPlace, optionNames, brief
       "- product_views: 상품샷에서 확실히 보이는 면 배열",
       "- product_notes: 이미지에서 반드시 똑같이 지켜야 할 제품 디테일을 영어로 짧게 (형태, 색, 소재·질감, 패턴, 로고·문구 위치 등 사진에 보이는 것만)",
     ] : []),
-    "- style: {accent: 상품과 어울리는 포인트 컬러 hex, visual: 모든 이미지에 공통 적용할 영어 스타일 한 문장(색감, 조명, 배경 소재, 무드)}",
+    "- style: {" + (brief ? "" : "layout: 위 배치 규칙의 레이아웃 키, ") + "accent: 상품과 어울리는 포인트 컬러 hex, visual: 모든 이미지에 공통 적용할 영어 스타일 한 문장(색감, 조명, 배경 소재, 무드)}",
     "- negative: 모든 이미지에서 금지할 것을 영어 짧은 구절 3~5개로 (없는 부속·로고·문구·라벨 추가, 용기나 구조 변형, 다른 브랜드 제품, 불필요한 손·얼굴 등 이 상품에 실제로 위험한 것만)",
     "- sections: 섹션 배열",
     "",
@@ -2926,7 +3228,7 @@ function planPrompt(name, info, tone, count, nImages, nPlace, optionNames, brief
     "⑤ 실행 — direction만 보고 이미지 모델이 장면을 그릴 수 있는가. 핵심 요소를 추측하게 두지 않았는가.",
     "한 가지라도 걸리면 그 부분만 고쳐라. 다른 항목이 좋다고 넘어가지 마라.",
     "",
-    "출력 예: {\"concept\":{\"name\":\"...\",\"driver\":\"신뢰·증거\",\"summary\":\"...\"},\"product_en\":\"...\"," + (nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") + "\"style\":{\"accent\":\"#2F5D50\",\"visual\":\"...\"},\"negative\":\"no added logos or text, no altered cap shape\",\"sections\":[{\"type\":\"hero\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"note\":\"...\",\"direction\":\"...\"}},{\"type\":\"wear\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"}]}]}",
+    "출력 예: {\"concept\":{\"name\":\"...\",\"driver\":\"신뢰·증거\",\"summary\":\"...\"},\"product_en\":\"...\"," + (nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") + "\"style\":{" + (brief ? "" : "\"layout\":\"classic\",") + "\"accent\":\"#2F5D50\",\"visual\":\"...\"},\"negative\":\"no added logos or text, no altered cap shape\",\"sections\":[{\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"note\":\"...\",\"direction\":\"...\"}},{\"type\":\"wear\",\"place\":\"above\",\"bg\":\"alt\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"}]}]}",
   ].join("\n");
 }
 
@@ -2944,6 +3246,8 @@ function normalizePlan(j) {
       id: x.id || uid(), type: x.type,
       eyebrow: str(x.eyebrow), label: str(x.label), headline: str(x.headline), sub: str(x.sub), body: str(x.body),
     };
+    if (x.place && DP_PLACES[x.place]) o.place = x.place;
+    if (x.bg && DP_BGS[x.bg]) o.bg = x.bg;
     if (x.type === "grid" || x.type === "steps" || x.type === "faq") {
       o.items = (Array.isArray(x.items) ? x.items : []).map((it) => ({ title: str(it && it.title), text: str(it && it.text) }));
     }
@@ -2969,8 +3273,12 @@ function normalizePlan(j) {
       const list = Array.isArray(x.images) && x.images.length ? x.images : [x.image || {}];
       o.images = list.slice(0, DP_MAX_IMG).map((raw) => {
         const im = raw || {};
+        const scn = DP_IMG_SCENARIOS.includes(im.scenario) ? im.scenario : (DP_DEFAULT_SCN[x.type] || "lifestyle-scene");
+        const vs = (scenarioById(scn) || {}).variants || {};
         const one = {
-          scenario: DP_IMG_SCENARIOS.includes(im.scenario) ? im.scenario : (DP_DEFAULT_SCN[x.type] || "lifestyle-scene"),
+          scenario: scn,
+          // 세부 스타일. 시나리오가 실제로 가진 키만 살린다(시나리오를 바꾸면 비워진다).
+          variant: vs[str(im.variant)] ? str(im.variant) : "",
           ratio: DP_RATIOS.includes(im.ratio) ? im.ratio : (x.type === "hero" ? "4:5" : "1:1"),
           note: str(im.note),
           direction: str(im.direction),
@@ -3005,6 +3313,9 @@ function normalizePlan(j) {
       aiAccent: hex(st.aiAccent) ? st.aiAccent : (hex(st.accent) ? st.accent : "#C96442"),
       visual: str(st.visual),
       adjust: (Array.isArray(st.adjust) ? st.adjust : []).map(str).filter(Boolean),
+      // 페이지 톤 고정: 세부 스타일이 색감·무드를 건드리지 못하게 막고, 먼저 만든
+      // 컷을 뒤 컷의 스타일 레퍼런스로 함께 보낸다. 기본 켜짐.
+      lockLook: st.lockLook !== false,
       layout: DP_LAYOUTS[st.layout] ? st.layout : "classic",
       palette: st.palette && hex(st.palette.bg) && hex(st.palette.alt) && hex(st.palette.ink)
         ? { bg: st.palette.bg, alt: st.palette.alt, ink: st.palette.ink, accent: hex(st.palette.accent) ? st.palette.accent : "" } : null,
@@ -3075,6 +3386,10 @@ function planParseError(what, text) {
 function parsePlan(text) {
   const j = parseJsonLoose(text);
   if (!j) throw planParseError("구성안을", text);
+  // Models add a closing photo even when told not to; the page ends on copy.
+  (Array.isArray(j.sections) ? j.sections : []).forEach((x) => {
+    if (x && x.type === "closing") { delete x.image; delete x.images; delete x.imageLayout; }
+  });
   return normalizePlan(j);
 }
 
@@ -3164,6 +3479,7 @@ $("dPlan").onclick = async () => {
   btn.innerHTML = '<span class="spin"></span>구성·카피 짜는 중…';
   setDStatus("");
   try {
+    dpNoPhotoOk = false;   // 초안이 바뀌면 상품샷 확인을 다시 받는다
     const { left, placed } = await makePlan(inp.apiKey, inp.name, inp.info);
     const n = missingImages();
     setDStatus("초안 완성: " + (dplan.concept.name ? "컨셉 '" + dplan.concept.name + "' · " : "") + "섹션 " + dplan.sections.length + "개." +
@@ -3263,7 +3579,7 @@ $("dAuto").onclick = async () => {
 // Brief = what one vision call (plus local color sampling) learned from the
 // reference. It steers the plan prompt, the photo style, the layout preset and
 // the page colors. Nothing is copied: no text, logos or specific photos.
-const RKEY = "ref_brief_v1";
+const RKEY = nsKey("ref_brief_v1");
 let refBrief = null;
 try { refBrief = JSON.parse(localStorage.getItem(RKEY) || "null"); } catch (e) { refBrief = null; }
 function saveBrief() { try { localStorage.setItem(RKEY, JSON.stringify(refBrief)); } catch (e) {} }
@@ -3540,8 +3856,12 @@ function makeEditable(e, obj, key) {
 // clean=true renders the export version: no editing hooks, no placeholders, empty fields dropped.
 function renderSection(s, i, clean) {
   const sec = document.createElement("section");
-  const alt = s.type !== "hero" && s.type !== "closing" && i % 2 === 1;
-  sec.className = "dp-sec dp-t-" + s.type + (alt ? " alt" : "");
+  // 배경을 직접 고른 섹션에는 .alt를 달지 않는다 — .alt는 프리셋마다 뜻이 달라서(볼드는 어두운
+  // 섹션, 좌우 분할은 좌우 뒤집기) 같이 두면 고른 배경과 부딪힌다.
+  const bg = s.bg && DP_BGS[s.bg] ? s.bg : "";
+  const alt = !bg && s.type !== "hero" && s.type !== "closing" && i % 2 === 1;
+  const place = s.images && s.images.length ? dpPlace(s, i) : "";
+  sec.className = "dp-sec dp-t-" + s.type + (alt ? " alt" : "") + (bg ? " dp-bg-" + bg : "") + (place ? " dp-place-" + place : "");
   const T = (tag, cls, obj, key) => {
     const v = obj[key] || "";
     if (clean && !v.trim()) return null;
@@ -3678,12 +3998,30 @@ function renderSection(s, i, clean) {
       }
       if (multi && w.firstChild) box.appendChild(w);
     });
-    if (box.firstChild) sec.appendChild(box);
+    if (box.firstChild) {
+      if (place === "above") sec.insertBefore(box, sec.firstChild); else sec.appendChild(box);
+      sec.classList.add("has-media");   // 이미지 칸이 있다(편집 화면의 자리표시 포함) — 배치 CSS가 이걸 본다
+    }
     if (any) sec.classList.add("has-img");
   }
   return sec;
 }
 
+function dpPick(label, keys, names, value, onchange) {
+  const sel = document.createElement("select");
+  sel.setAttribute("aria-label", label);
+  sel.title = label;
+  keys.forEach((k) => { const o = document.createElement("option"); o.value = k; o.textContent = names[k]; sel.appendChild(o); });
+  sel.value = keys.includes(value) ? value : "";
+  sel.onchange = () => onchange(sel.value);
+  return sel;
+}
+function dpInsertSection(at, type) {
+  const raw = Object.assign({ type }, JSON.parse(JSON.stringify(DP_BLANK[type])));
+  dplan.sections.splice(at, 0, normalizePlan({ sections: [raw] }).sections[0]);
+  renderDetail(); saveDetailSoon();
+  setDStatus((at + 1) + "번에 빈 '" + DP_TYPES[type] + "' 섹션을 넣었습니다. 글자를 눌러 채우세요.", "ok");
+}
 function toolButton(text, onclick, disabled) {
   const b = document.createElement("button");
   b.type = "button"; b.textContent = text; b.onclick = onclick; b.disabled = !!disabled;
@@ -3697,6 +4035,18 @@ function renderTools(s, i) {
   t.className = "sec-type";
   t.textContent = (i + 1) + " · " + DP_TYPES[s.type];
   bar.appendChild(t);
+  // 섹션 구성 — 이미지 설정과 달리 섹션 전체에 걸린다.
+  if (s.images && s.images.length) {
+    const auto = DP_PLACES[dpPlace(Object.assign({}, s, { place: "" }), i)];
+    bar.appendChild(dpPick("글·이미지 배치", dpPlaceKeys(s), Object.assign({}, DP_PLACES, { "": "배치: 자동 (" + auto + ")" }), s.place || "", (v) => {
+      if (v) s.place = v; else delete s.place;
+      renderDetail(); saveDetailSoon();   // 좌우 배치는 이미지 칸 폭(생성 크기·프롬프트)도 바꾼다
+    }));
+  }
+  bar.appendChild(dpPick("섹션 배경", Object.keys(DP_BGS), DP_BGS, s.bg || "", (v) => {
+    if (v) s.bg = v; else delete s.bg;
+    renderDetail(); saveDetailSoon();
+  }));
   if (s.images && s.images.length) {
     if (s.images.length > 1) {
       const lay = document.createElement("select");
@@ -3732,13 +4082,39 @@ function renderTools(s, i) {
       }
       const scn = document.createElement("select");
       scn.setAttribute("aria-label", "이미지 시나리오");
-      DP_IMG_SCENARIOS.forEach((id) => {
-        const o = document.createElement("option");
-        o.value = id; o.textContent = scenarioById(id).kr;
-        scn.appendChild(o);
+      DP_SCN_GROUPS.forEach(([group, rows]) => {
+        const g = document.createElement("optgroup");
+        g.label = group;
+        rows.forEach(([id]) => {
+          const o = document.createElement("option");
+          o.value = id; o.textContent = scenarioById(id).kr;
+          g.appendChild(o);
+        });
+        scn.appendChild(g);
       });
       scn.value = im.scenario;
-      scn.onchange = () => { im.scenario = scn.value; saveDetailSoon(); };
+      // 시나리오가 바뀌면 딸린 세부 스타일 목록도 달라진다 — 값을 비우고 도구줄을 다시 그린다.
+      scn.onchange = () => { im.scenario = scn.value; im.variant = ""; saveDetailSoon(); renderDetail(); };
+      // 세부 스타일. 톤 고정이 켜져 있으면 색감·무드 override는 버려지고 연출만 바뀐다.
+      const vs = (scenarioById(im.scenario) || {}).variants || {};
+      const vkeys = Object.keys(vs);
+      const vsel = document.createElement("select");
+      if (vkeys.length) {
+        vsel.setAttribute("aria-label", "세부 스타일");
+        vsel.title = dplan.style.lockLook
+          ? "이 컷의 연출(조명·배경·구도·소품)만 바꿉니다. 색감·무드는 페이지 톤 고정이 잡습니다."
+          : "이 컷의 연출과 색감을 함께 바꿉니다 (톤 고정 꺼짐).";
+        const base = document.createElement("option");
+        base.value = ""; base.textContent = "기본 스타일";
+        vsel.appendChild(base);
+        vkeys.forEach((key) => {
+          const o = document.createElement("option");
+          o.value = key; o.textContent = vs[key].description || key;
+          vsel.appendChild(o);
+        });
+        vsel.value = im.variant || "";
+        vsel.onchange = () => { im.variant = vsel.value; saveDetailSoon(); };
+      }
       const ratio = document.createElement("select");
       ratio.setAttribute("aria-label", "이미지 비율");
       DP_RATIOS.forEach((r) => { const o = document.createElement("option"); o.value = o.textContent = r; ratio.appendChild(o); });
@@ -3754,7 +4130,9 @@ function renderTools(s, i) {
       dir.placeholder = "이미지 지시 (예: 아침 햇살 드는 욕실 선반 위)";
       dir.setAttribute("aria-label", "이미지 지시");
       dir.oninput = () => { im.direction = dir.value; saveDetailSoon(); };
-      bar.appendChild(scn); bar.appendChild(ratio); bar.appendChild(size); bar.appendChild(dir);
+      bar.appendChild(scn);
+      if (vkeys.length) bar.appendChild(vsel);
+      bar.appendChild(ratio); bar.appendChild(size); bar.appendChild(dir);
       bar.appendChild(toolButton(busy ? "생성 중…" : (dimgs[key] ? "다시 생성" : "이미지 생성"),
         () => genSectionImage(s, null, k).catch((e) => setDStatus(String(e.message || e), "err")), busy));
       bar.appendChild(toolButton(im.custom ? "프롬프트 ✎" : "프롬프트", () => showPrompt(
@@ -3822,6 +4200,20 @@ function renderTools(s, i) {
       }));
     }
   }
+  // closing has no picture by default: let the seller add one or take it back out.
+  if (s.type === "closing") {
+    const has = s.images && s.images.length;
+    bar.appendChild(toolButton(has ? "사진 빼기" : "+ 사진", () => {
+      if (has) {
+        s.images.forEach((_, k) => { delete dimgs[imgKey(s, k)]; });
+        delete s.images; delete s.image; delete s.imageLayout; delete s.place;
+      } else {
+        const tmp = normalizePlan({ sections: [{ type: "closing", image: { scenario: "lifestyle-scene", ratio: "4:5" } }] }).sections[0];
+        s.images = tmp.images; s.image = tmp.images[0];
+      }
+      renderDetail(); saveDetailSoon();
+    }, has && s.images.some((_, k) => dbusy.has(imgKey(s, k)))));
+  }
   if (s.type === "options") {
     const items = s.items || [];
     const busy = items.some((_, k) => dbusy.has(optKey(s, k)));
@@ -3851,6 +4243,13 @@ function renderTools(s, i) {
     Object.keys(dimgs).forEach((k) => { if (k === s.id || k.startsWith(s.id + "#")) delete dimgs[k]; });
     renderDetail(); saveDetailSoon();
   }));
+  const addSel = document.createElement("select");
+  addSel.setAttribute("aria-label", "아래에 섹션 추가");
+  [["", "+ 아래에 섹션 추가"]].concat(DP_ADDABLE.map((x) => [x, DP_TYPES[x]])).forEach(([v, label]) => {
+    const o = document.createElement("option"); o.value = v; o.textContent = label; addSel.appendChild(o);
+  });
+  addSel.onchange = () => { if (addSel.value) dpInsertSection(i + 1, addSel.value); };
+  bar.appendChild(addSel);
   return bar;
 }
 
@@ -3865,6 +4264,7 @@ function renderDetail() {
   $("dpAccent").value = dplan.style.accent;
   $("dpLayout").value = dplan.style.layout;
   $("dpPalette").value = dplan.style.usePalette && dplan.style.palette ? "ref" : "";
+  $("dpTone").value = dplan.style.lockLook ? "lock" : "free";
   $("dpPalette").options[1].disabled = !dplan.style.palette;
   renderSwatches();
   const c = dplan.concept || {};
@@ -3904,6 +4304,8 @@ Object.entries(DP_LAYOUTS).forEach(([k, v]) => {
 });
 $("dpLayout").onchange = () => { if (!dplan) return; dplan.style.layout = $("dpLayout").value; renderDetail(); saveDetailSoon(); };
 $("dpPalette").onchange = () => { if (!dplan) return; dplan.style.usePalette = $("dpPalette").value === "ref"; renderDetail(); saveDetailSoon(); };
+// 톤 고정을 끄면 세부 스타일이 색감·무드까지 바꾸고, 페이지 톤 기준 컷도 딸려가지 않는다.
+$("dpTone").onchange = () => { if (!dplan) return; dplan.style.lockLook = $("dpTone").value === "lock"; renderDetail(); saveDetailSoon(); };
 function setAccent(hex) {
   if (!dplan) return;
   dplan.style.accent = hex;
@@ -3945,36 +4347,115 @@ function sectionPrompt(s, k) {
   if (im.custom) return im.custom;
   return autoSectionPrompt(s, k || 0);
 }
-// The first picture of a section, once it exists, is handed to the others as a
-// style reference so a multi-image section comes out as one set.
-function sectionStyleRef(s, k) {
-  if (!(k > 0)) return "";
-  const url = dimgs[imgKey(s, 0)] || "";
-  return /^data:[^;]+;base64,/.test(url) ? url : "";
+// 세부 스타일(variant)이 바꿔도 되는 것과, 페이지 전체가 쥐고 있어야 하는 것.
+// 색감·팔레트·무드·아트디렉션이 섹션마다 따로 놀면 한 상세페이지로 읽히지 않는다 —
+// 톤 고정이 켜져 있으면 이 키들의 variant override는 버리고 공통 style.visual이 잡는다.
+// 조명·배경·구도·소품·효과(atmosphere 포함: 이 템플릿들에서는 연기·꽃잎 같은 연출
+// 소품을 뜻한다)는 섹션마다 달라도 되는 것이라 variant에 그대로 맡긴다.
+const DP_LOOK_KEYS = ["color_palette", "color_scheme", "mood", "art_direction", "grading"];
+function dpScenarioFor(im) {
+  const scn = scenarioById(im.scenario) || scenarioById("lifestyle-scene");
+  const v = im.variant && scn.variants && scn.variants[im.variant];
+  if (!v || !dplan.style.lockLook) return scn;
+  const ov = {};
+  Object.entries(v.overrides || {}).forEach(([k, val]) => { if (!DP_LOOK_KEYS.includes(k)) ov[k] = val; });
+  // 고르는 순간 아무 일도 안 하는 세부 스타일은 만들지 않는다 — 걸러낸 결과가
+  // 비면 그 variant는 색감으로만 이루어진 것이니 원래대로 두고, 대신 공통
+  // style.visual이 프롬프트 뒤에서 색감을 다시 잡아준다.
+  if (!Object.keys(ov).length) return scn;
+  // variant 자체 설정(fidelity, shots, lang)은 그대로 두고 overrides만 걸러낸다.
+  return Object.assign({}, scn, { variants: Object.assign({}, scn.variants,
+    { [im.variant]: Object.assign({}, v, { overrides: ov }) }) });
 }
+// 흰 바탕 누끼 컷인지. hero-image의 한국어 이름은 '흰배경 대표이미지'지만 원래
+// 시나리오는 단색 배경 대표컷(白底/纯色底)이라, 세부 스타일에 따라 배경이 어두운
+// 그라데이션·파스텔·컬러로 바뀐다. 이름이 아니라 실제로 합쳐진 background를 본다.
+function dpWhitePackshot(im) {
+  if (im.scenario !== "hero-image") return false;
+  const bg = mergedTemplate(scenarioById("hero-image"), im.variant || "", null).background || "";
+  return /white/i.test(bg);
+}
+// 페이지의 톤 기준 컷: 페이지 순서에서 이 자리보다 앞에 있고 이미 만들어진 컷.
+// 흰 바탕 누끼는 기준이 될 수도, 기준을 따를 필요도 없다 — 배경이 흰색이라 다른
+// 컷의 색감·배경을 대표하지 못하고, 반대로 다른 컷의 색감을 흰 바탕에 씌우면 안 된다.
+function dpAnchorKey(selfKey) {
+  for (const s of dplan.sections) {
+    const list = s.images || [];
+    for (let k = 0; k < list.length; k++) {
+      const key = imgKey(s, k);
+      if (key === selfKey) return "";
+      if (dpWhitePackshot(list[k])) continue;
+      if (/^data:[^;]+;base64,/.test(dimgs[key] || "")) return key;
+    }
+  }
+  return "";
+}
+// 함께 보낼 스타일 레퍼런스: 같은 섹션의 첫 장(한 세트로 보이게) + 페이지 톤 기준 컷
+// (페이지 전체가 한 촬영으로 보이게). 프롬프트가 세는 장수와 실제 첨부가 어긋나지
+// 않도록 프롬프트 쪽과 생성 쪽이 같은 함수를 쓴다.
+function dpStyleRefs(s, k) {
+  const im = s.images[k] || {};
+  const out = [];
+  const add = (u) => { if (/^data:[^;]+;base64,/.test(u || "") && !out.includes(u)) out.push(u); };
+  if (k > 0) add(dimgs[imgKey(s, 0)]);
+  if (dplan.style.lockLook && !dpWhitePackshot(im)) {
+    const a = dpAnchorKey(imgKey(s, k));
+    if (a) add(dimgs[a]);
+  }
+  return out;
+}
+// 흰 바탕 누끼 컷은 장면 지시와 공통 비주얼 스타일이 그대로 얹히면 배경이 생겨버린다
+// (둘 다 "위 템플릿보다 우선"이라고 말하므로 background: clean white background 를 이긴다).
+// 스마트스토어 세트의 SS_MAIN_RULE과 같은 취지로 이 컷만 따로 못을 박는다.
+const DP_WHITE_RULE = "this is a cut-out packshot: the product alone on a pure white (#FFFFFF) seamless background — " +
+  "no room, no furniture, no table or shelf, no surfaces, no props, no people, no scenery, no colored or textured backdrop; " +
+  "soft even studio lighting with only a subtle natural contact shadow under the product; " +
+  "this rule outranks the scene direction and any shared style described above";
 function autoSectionPrompt(s, k) {
   const im = s.images[k || 0];
-  const sib = sectionStyleRef(s, k || 0) ? 1 : 0;
-  const scn = scenarioById(im.scenario) || scenarioById("lifestyle-scene");
+  const nProduct = dpProductRefs().length;
+  const nStyle = dpStyleRefs(s, k || 0).length;
+  const anchored = dplan.style.lockLook && nStyle > (k > 0 ? 1 : 0);
+  const white = dpWhitePackshot(im);
+  const scn = dpScenarioFor(im);
   const st = dplan.style;
   const extra = [
-    im.direction ? "scene direction (takes priority over the template lines above where they conflict): " + im.direction : "",
+    im.direction ? "scene direction (takes priority over the template lines above where they conflict" +
+      (white ? ", except the white background and studio lighting, which are fixed" : "") + "): " + im.direction : "",
+    // 좁은 칸에 풀샷이 들어가면 제품이 점이 된다 — 구도만 조이는 지시다.
+    // 예전 문구 "avoid fine detail that vanishes at this width"는 이미지 모델이
+    // '제품을 덜 세밀하게 그려라'로 읽어, 같은 프롬프트의 충실도 지시(솔기·스티치·
+    // 로고까지 그대로)와 정면으로 부딪혔다. 구도 얘기임을 못 박아 둔다.
     (() => { const px = slotPx(s, k || 0);
       return "this image is displayed at " + px.w + "x" + px.h + " px on the page" +
-        (px.w < 500 ? ", a narrow column — keep the subject large and centred, avoid fine detail that vanishes at this width" : ""); })(),
+        (px.w < 500 ? ", a narrow column — compose it so the product fills most of the frame and sits centred; " +
+          "do not use a wide shot where the product is small in frame. This is about framing only: " +
+          "render the product itself with full detail" : ""); })(),
     s.images.length > 1 ? "this is image " + ((k || 0) + 1) + " of " + s.images.length + " shown together in one section; keep it clearly different from the others in framing and angle, but identical in lighting, background family and mood so they sit side by side" : "",
-    st.visual ? "shared visual style for every image on this product detail page: " + st.visual : "",
+    !white && st.visual ? "shared visual style for every image on this product detail page (it wins over any conflicting style line above): " + st.visual : "",
+    anchored ? "one of the attached style references is an image already made for this same detail page: match its color grading, color temperature, lighting and background family so the whole page reads as one photo shoot, but keep this image's own composition, camera angle and subject framing" : "",
     dplan.extra ? "seller's request for this detail page (applies to every image): " + dplan.extra : "",
-    dplan.product_notes && productRefs.length ? "critical product details to keep exactly as in the product photo: " + dplan.product_notes : "",
+    dplan.product_notes && nProduct ? "critical product details to keep exactly as in the product photo: " + dplan.product_notes : "",
+    // 기획을 사진 없이 돌렸거나 옵션 사진만 썼으면 product_views가 비어 각도 제약(viewsLine)이
+    // 통째로 빠진다. 그때도 사진에 없는 면을 지어내지 않도록 최소한의 문구는 남긴다.
+    nProduct && !dplan.product_views.length
+      ? "the attached product photos may not show every side of the product; show it only from sides that are clearly visible in them, and never invent the look of a side you cannot see"
+      : "",
     dplan.negative ? "never add or change: " + dplan.negative : "",
     "this image sits below Korean headline text on a product detail page, so do not render any text, letters, captions, labels, or badges in the image",
+    white ? DP_WHITE_RULE : "",
   ].filter(Boolean).join("; ");
   return [
-    buildPrompt({ s: scn, vkey: "", subject: dplan.product_en || $("dName").value.trim(), extra, nProduct: productRefs.length, nStyle: sib }),
-    productRefs.length && dplan.product_views.length && usesViewLine(scn, "") ? viewsLine(dplan.product_views) : "",
+    buildPrompt({ s: scn, vkey: im.variant || "", subject: dplan.product_en || $("dName").value.trim(), extra, nProduct, nStyle }),
+    nProduct && dplan.product_views.length && usesViewLine(scn, im.variant || "") ? viewsLine(dplan.product_views) : "",
     notesLine(st.adjust || []),
   ].filter(Boolean).join("\n");
 }
+// Options differ only by colour/finish, so every colour word in the rest of the prompt
+// (product description, page style, seller's request) may belong to a different option.
+const OPTION_COLOR_OVERRIDE = "ignore every colour, tone, pattern, and material word written anywhere else in this prompt — " +
+  "they may describe a different option; the attached product photo is the only source of truth for how this option looks";
+
 // Option images: one clean, identical composition per option so they line up side by side.
 function optionPrompt(it, nRefs) {
   return it.custom || autoOptionPrompt(it, nRefs);
@@ -3982,14 +4463,19 @@ function optionPrompt(it, nRefs) {
 function autoOptionPrompt(it, nRefs) {
   const st = dplan.style;
   const extra = [
-    "this image shows the '" + it.title + "' option; the product's color, material, and finish must exactly match the attached product photo(s) of this option",
+    "this image shows the '" + it.title + "' option; its color, color tone, pattern, material, and finish come ONLY from the attached product photo of this option",
+    OPTION_COLOR_OVERRIDE,
     "one image of a matching set: identical camera angle, framing, product size, lighting, and plain background for every option, so they line up side by side",
-    st.visual ? "shared visual style: " + st.visual : "",
+    // dplan.style.visual is deliberately left out: it is written from the photo the plan
+    // was built on, so it names that option's colour and bleeds into every other option.
     dplan.negative ? "never add or change: " + dplan.negative : "",
     "do not render any text, letters, labels, or badges",
   ].filter(Boolean).join("; ");
   return [
-    buildPrompt({ s: scenarioById("hero-image"), vkey: "", subject: (dplan.product_en || $("dName").value.trim()) + " (option: " + it.title + ")",
+    // The plan's product_en describes whichever photo the plan was built from, so it
+    // usually names another option's color. Options get a colour-free subject instead.
+    buildPrompt({ s: scenarioById("hero-image"), vkey: "",
+      subject: "the product in the attached product photo, shown in the '" + it.title + "' option",
       extra, nProduct: nRefs, nStyle: 0 }),
     "camera angle matching the product photo, so the product is seen from the same side as in the product photo.",
     notesLine(st.adjust || []),
@@ -4010,6 +4496,7 @@ async function genImageUrl(promptText, refs, ratio, tag, size) {
 
 // Returns the new image URL (or undefined if this section is already busy).
 async function genSectionImage(s, editInstr, slotArg) {
+  if (!editInstr && !dpPhotoGuard()) return;
   if (!$("apikey").value.trim()) throw new Error("API 키를 입력하세요.");
   const slot = slotArg || 0;
   const im = s.images[slot];
@@ -4023,12 +4510,11 @@ async function genSectionImage(s, editInstr, slotArg) {
       "\nKeep everything else identical to the attached image — same product, composition, lighting, and style. Apply only the requested change." +
       "\nDo not add any text, letters, or badges.\nconstraints: " + EDIT_CONSTRAINTS;
   } else {
-    refs = productRefs.slice();
-    const sib = sectionStyleRef(s, slot);
-    if (sib) {
-      const m = sib.match(/^data:([^;]+);base64,(.+)$/);
-      if (m) refs.push({ name: "sibling", mime: m[1], b64: m[2], url: sib });
-    }
+    refs = dpProductRefs().slice();
+    dpStyleRefs(s, slot).forEach((u, i) => {
+      const m = u.match(/^data:([^;]+);base64,(.+)$/);
+      if (m) refs.push({ name: i === 0 && slot > 0 ? "sibling" : "page-tone", mime: m[1], b64: m[2], url: u });
+    });
     promptText = sectionPrompt(s, slot);
   }
   dbusy.add(key);
@@ -4049,6 +4535,7 @@ async function genSectionImage(s, editInstr, slotArg) {
 
 // Slot 0 first, so the rest can follow its look.
 async function genSectionAll(s) {
+  if (!dpPhotoGuard()) return;
   for (let k = 0; k < s.images.length; k++) {
     if (dimgs[imgKey(s, k)] || dbusy.has(imgKey(s, k))) continue;
     await genSectionImage(s, null, k);
@@ -4059,7 +4546,7 @@ async function genOptionImage(s, k) {
   const it = s.items[k], key = optKey(s, k);
   if (dbusy.has(key)) return;
   const g = variantGroups.find((v) => v.id === it.vid);
-  if (!g || !g.refs.length) throw new Error("옵션 '" + it.title + "'의 사진이 없습니다. 왼쪽 '옵션별 상품샷'에 다시 넣어주세요.");
+  if (!g || !g.refs.length) throw new Error("옵션 '" + it.title + "'의 사진이 없습니다. 왼쪽 상품샷에 넣고 옵션 이름을 적어주세요.");
   const promptText = optionPrompt(it, g.refs.length);
   dbusy.add(key);
   renderDetail();
@@ -4094,6 +4581,8 @@ function emptyImageJobs() {
 async function runDetailImages(prefix) {
   const jobs = emptyImageJobs();
   let made = 0;
+  // 섹션마다 묻지 않는다 — 한 번 취소하면 이번 실행 전체를 멈춘다.
+  if (jobs.some((j) => j.slot != null) && !dpPhotoGuard()) return { made, total: jobs.length, stopped: true };
   for (let j = 0; j < jobs.length; j++) {
     const job = jobs[j];
     if (!dplan.sections.includes(job.s)) continue;   // deleted meanwhile
@@ -4111,9 +4600,24 @@ async function runDetailImages(prefix) {
   return { made, total: jobs.length, stopped: false };
 }
 
+// 상품샷이 없으면 제품 충실도 지시(FIDELITY_TEXT·FIDELITY_PRIORITY)와 product_notes,
+// 각도 제약이 프롬프트에서 통째로 빠진다 — 모델이 product_en 한 문장만 보고 제품을
+// 지어내므로 모양·디테일·크기가 실제와 달라진다. 조용히 그렇게 만들지 않는다.
+let dpNoPhotoOk = false;
+// 옵션 이름을 단 사진은 productRefs가 아니라 variantGroups에 들어간다. 일반 섹션 이미지는
+// 주상품(고른 옵션 > 옵션 없는 사진 > 첫 옵션)을 상품샷으로 쓴다 — 옵션 사진만 있어도 없는 셈 치지 않는다.
+const dpProductRefs = mainProductRefs;
+function dpPhotoGuard() {
+  if (dpProductRefs().length || dpNoPhotoOk) return true;
+  const ok = confirm("상품샷이 없습니다.\n\n이대로 만들면 상품 사진을 보지 않고 상품 설명 문장만으로 제품을 그리기 때문에, " +
+    "실제 제품과 모양·세부 디테일·크기가 다르게 나옵니다.\n\n왼쪽 '상품샷'에 사진을 넣고 만드시는 걸 권합니다. 그래도 진행할까요?");
+  if (ok) dpNoPhotoOk = true;
+  return ok;
+}
 $("dpGenAll").onclick = async () => {
   if (!dplan) return;
   if (!emptyImageJobs().length) { setDStatus("빈 이미지가 없습니다. 바꾸고 싶은 섹션은 '다시 생성'을 누르세요.", "ok"); return; }
+  if (!dpPhotoGuard()) return;
   const btn = $("dpGenAll");
   btn.disabled = true;
   let r = { made: 0 };
@@ -4238,7 +4742,7 @@ $("dpHtml").onclick = () => {
 // 추가이미지 후보를 추천하고, 고른 컷을 1:1로 만들어 1000×1000 JPG로 저장.
 // 파일명은 검색 키워드로 붙인다 (스마트스토어 대표이미지 팁 01~04).
 // =====================================================================
-const SKEY = "set_state_v1";
+const SKEY = nsKey("set_state_v1");
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const SS_MAX_EXTRA = 10;   // 추가이미지 칸 수 (1~10장)
 // Photo scenarios only: text-heavy (infographic, poster, spec), edit-only and
@@ -5114,6 +5618,762 @@ $("ssZip").onclick = async () => {
     }
   } catch (e) { splan = null; }
   renderSet();
+})();
+
+// ---- Account + per-user sync (Supabase) ----
+// Only runs when supabase_config.json was present at build time.
+//  * The password never leaves the browser. Supabase receives a PBKDF2 hash of it
+//    (salted with the e-mail) as the account password, and a second, independent
+//    PBKDF2 key (random salt) encrypts the API keys with AES-GCM before upload.
+//    Neither Supabase nor whoever runs the project can read the keys.
+//  * History entries, prompt log and costs are stored per user; row-level security
+//    (web/supabase/schema.sql) lets each account read and write only its own rows.
+//  * Local copies live under "u:<id>:" names (see nsKey) and are wiped on logout.
+(function account() {
+  if (!SUPABASE_CFG) return;
+
+  const SB_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js";
+  const SB_SRI = "sha384-iLddHTLokph6Omwoyid4XKxHaWa6w41BnoEj0q5oOrzmYPpHIKt1wyjReA7s//pP";
+  const BUCKET = "history";
+  const HISTORY_MAX = 50;
+  const AUTH_ITER = 200000;
+  const VAULT_ITER = 600000;
+  const ANON_KEYS = ["gemini_api_key", "openrouter_api_key", "anthropic_api_key", "api_cost_v1", "prompt_log_v1",
+    "gen_history_v1", "detail_state_v1", "ref_brief_v1", "set_state_v1"];
+  const nsFor = (uid, k) => "u:" + uid + ":" + k;
+  const imgPath = (id) => user.id + "/" + id + ".json";
+
+  let sb = null, user = null;
+  let vaultKey = null, vaultSalt = null, vaultIter = VAULT_ITER;   // AES-GCM key (non-extractable)
+  let keysLocked = false;
+  let readyResolve;
+  const ready = new Promise((r) => { readyResolve = r; });
+
+  // ---------- crypto ----------
+  const te = new TextEncoder();
+  const b64e = (buf) => { let s = ""; new Uint8Array(buf).forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
+  const b64d = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const clampIter = (n) => Math.min(5000000, Math.max(100000, Number(n) || VAULT_ITER));
+  const pwBase = (pw) => crypto.subtle.importKey("raw", te.encode(pw), "PBKDF2", false, ["deriveBits", "deriveKey"]);
+  // What Supabase sees as the password: a hash, so the real one stays here.
+  async function authSecret(email, pw) {
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256",
+      salt: te.encode("ecom-image-studio/auth/v1/" + email.trim().toLowerCase()), iterations: AUTH_ITER }, await pwBase(pw), 256);
+    return b64e(bits);
+  }
+  async function deriveVaultKey(pw, salt, iter) {
+    return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: b64d(salt), iterations: clampIter(iter) },
+      await pwBase(pw), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  const newSalt = () => b64e(crypto.getRandomValues(new Uint8Array(16)));
+  async function seal(key, salt, iter, obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, te.encode(JSON.stringify(obj)));
+    return { v: 1, kdf: "pbkdf2-sha256", iter, salt, iv: b64e(iv), ct: b64e(ct) };
+  }
+  async function unseal(blob, key) {
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(blob.iv) }, key, b64d(blob.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  // The derived key is kept (non-extractable) in IndexedDB so a reload does not
+  // need the password again. Deleted on logout.
+  function vaultStore(mode, fn) {
+    return new Promise((resolve) => {
+      let req;
+      try { req = indexedDB.open("account_vault", 1); } catch (e) { return resolve(null); }
+      req.onupgradeneeded = () => req.result.createObjectStore("k");
+      req.onerror = () => resolve(null);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("k", mode);
+          const q = fn(tx.objectStore("k"));
+          tx.oncomplete = () => { db.close(); resolve(q ? q.result : null); };
+          tx.onerror = tx.onabort = () => { db.close(); resolve(null); };
+        } catch (e) { db.close(); resolve(null); }
+      };
+    });
+  }
+  async function keepVaultKey(uid, key, salt, iter) {
+    vaultKey = key; vaultSalt = salt; vaultIter = iter; keysLocked = false;
+    await vaultStore("readwrite", (s) => s.put({ key, salt, iter }, uid));
+  }
+
+  // ---------- API keys <-> page ----------
+  const KEY_FIELDS = { gemini: BACKENDS.gemini.keyStore, openrouter: BACKENDS.openrouter.keyStore, anthropic: ANTHROPIC_KEY_STORE };
+  function readKeys() {
+    const o = {};
+    Object.entries(KEY_FIELDS).forEach(([k, st]) => { try { o[k] = localStorage.getItem(st) || ""; } catch (e) { o[k] = ""; } });
+    return o;
+  }
+  function writeKeys(o) {
+    Object.entries(KEY_FIELDS).forEach(([k, st]) => {
+      try { if (o && o[k]) localStorage.setItem(st, o[k]); else localStorage.removeItem(st); } catch (e) {}
+    });
+    loadKeyFor(currentBackend());
+    $("anthropicKey").value = (o && o.anthropic) || "";
+  }
+
+  // ---------- what still has to go up ----------
+  // Persisted, so work done offline or right before closing the tab is sent later.
+  const PEND_KEY = nsKey("sync_pending_v1");
+  const SENT_KEY = nsKey("sync_sent_v1");   // entry id -> hash of what the server has
+  let pend = { up: [], del: [], img: [], state: false, keys: false };
+  let sent = {};
+  try {
+    const p = JSON.parse(localStorage.getItem(PEND_KEY) || "null");
+    if (p) pend = { up: p.up || [], del: p.del || [], img: p.img || [], state: !!p.state, keys: !!p.keys };
+    sent = JSON.parse(localStorage.getItem(SENT_KEY) || "{}") || {};
+  } catch (e) {}
+  function savePending() {
+    try {
+      localStorage.setItem(PEND_KEY, JSON.stringify(pend));
+      localStorage.setItem(SENT_KEY, JSON.stringify(sent));
+    } catch (e) {}
+    renderSync();
+  }
+  const addTo = (arr, id) => { if (!arr.includes(id)) arr.push(id); };
+  const pendingCount = () => pend.up.length + pend.del.length + pend.img.length + (pend.state ? 1 : 0) + (pend.keys ? 1 : 0);
+
+  function stableStr(v) {
+    if (v === null || typeof v !== "object") { const j = JSON.stringify(v); return j === undefined ? "null" : j; }
+    if (Array.isArray(v)) return "[" + v.map(stableStr).join(",") + "]";
+    return "{" + Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== "function").sort()
+      .map((k) => JSON.stringify(k) + ":" + stableStr(v[k])).join(",") + "}";
+  }
+  function hashOf(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0).toString(16) + ":" + s.length;
+  }
+  const cleanEntry = (h) => { const c = Object.assign({}, h); delete c.thumb; return c; };
+  const entryHash = (h) => hashOf(stableStr(cleanEntry(h)));
+
+  // Small JPEG thumbnail kept in the entry, so another device can list the
+  // history without downloading every image.
+  const miniBusy = new Set();
+  function makeMini(h, src) {
+    src = src || h.thumb;
+    if (h.mini || !h.id || miniBusy.has(h.id) || !/^(data:image\/|blob:)/.test(src || "")) return;
+    miniBusy.add(h.id);
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const s = Math.min(1, 120 / Math.max(im.naturalWidth, im.naturalHeight));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(im.naturalWidth * s));
+        c.height = Math.max(1, Math.round(im.naturalHeight * s));
+        const g = c.getContext("2d");
+        g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(im, 0, 0, c.width, c.height);
+        h.mini = c.toDataURL("image/jpeg", 0.72);
+        saveHistory();
+      } catch (e) {}
+      miniBusy.delete(h.id);
+    };
+    im.onerror = () => miniBusy.delete(h.id);
+    im.src = src;
+  }
+
+  let diffTimer = null;
+  function diffHistory() {
+    const seen = new Set();
+    history.forEach((h) => {
+      if (!h.id) return;
+      seen.add(h.id);
+      if (sent[h.id] !== entryHash(h)) addTo(pend.up, h.id);
+      if (!h.mini && h.thumb) makeMini(h);
+    });
+    Object.keys(sent).forEach((id) => {
+      if (seen.has(id)) return;
+      addTo(pend.del, id);
+      pend.up = pend.up.filter((x) => x !== id);
+      pend.img = pend.img.filter((x) => x !== id);
+    });
+    savePending();
+    scheduleFlush();
+  }
+
+  // ---------- push ----------
+  let flushTimer = null, flushing = false, flushAgain = false;
+  let stateVer = 0, keysVer = 0;
+  const imgVer = {};
+  function scheduleFlush(ms) {
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flushAll, ms == null ? 1200 : ms);
+  }
+  async function flushHistory() {
+    const ups = pend.up.slice(), dels = pend.del.slice();
+    const rows = [], hashes = {};
+    ups.forEach((id) => {
+      const h = history.find((x) => x.id === id);
+      if (!h) return;
+      const e = cleanEntry(h);
+      rows.push({ user_id: user.id, id, ts: h.ts || 0, entry: e });
+      hashes[id] = hashOf(stableStr(e));
+    });
+    for (let i = 0; i < rows.length; i += 20) {
+      const { error } = await sb.from("gen_history").upsert(rows.slice(i, i + 20));
+      if (error) throw error;
+    }
+    if (dels.length) {
+      const { error } = await sb.from("gen_history").delete().eq("user_id", user.id).in("id", dels);
+      if (error) throw error;
+      await sb.storage.from(BUCKET).remove(dels.map(imgPath));   // best-effort
+    }
+    Object.assign(sent, hashes);
+    dels.forEach((id) => { delete sent[id]; });
+    pend.up = pend.up.filter((id) => !ups.includes(id));
+    pend.del = pend.del.filter((id) => !dels.includes(id));
+    diffHistory();   // anything edited while we were uploading goes back on the list
+  }
+  let imgNote = "";
+  async function flushImages() {
+    for (const id of pend.img.slice()) {
+      const ver = imgVer[id] || 0;
+      const drop = () => { if ((imgVer[id] || 0) === ver) pend.img = pend.img.filter((x) => x !== id); };
+      const h = history.find((x) => x.id === id);
+      const rec = h ? await imgGetLocal(id) : null;
+      if (!rec) { drop(); continue; }
+      const body = new Blob([JSON.stringify(rec)], { type: "application/json" });
+      const { error } = await sb.storage.from(BUCKET).upload(imgPath(id), body, { upsert: true, contentType: "application/json" });
+      if (error) {
+        // Too big for the bucket: keep it in this browser only, don't retry forever.
+        if (/exceed|too large|413|size/i.test(String(error.message || "") + " " + (error.statusCode || ""))) {
+          imgNote = "용량이 커서 계정에 올리지 못한 이미지가 있습니다 (이 브라우저에는 남아 있음).";
+          drop(); continue;
+        }
+        throw error;
+      }
+      drop();
+      if (!h.mini && rec.outputs && rec.outputs[0]) makeMini(h, rec.outputs[0]);
+    }
+  }
+  async function flushState() {
+    const ver = stateVer;
+    const { error } = await sb.from("user_state").upsert({
+      user_id: user.id, prompt_log: plog.slice(0, PLOG_MAX), cost: costTotal, updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    if (ver === stateVer) pend.state = false;
+  }
+  async function flushKeys() {
+    const ver = keysVer;
+    const blob = await seal(vaultKey, vaultSalt, vaultIter, readKeys());
+    const { error } = await sb.from("user_vault").upsert({ user_id: user.id, blob, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    if (ver === keysVer) pend.keys = false;
+  }
+  let lastSync = 0, syncErr = "";
+  async function flushAll() {
+    if (!user || !sb) return;
+    if (flushing) { flushAgain = true; return; }
+    flushing = true; syncErr = ""; renderSync();
+    try {
+      if (pend.up.length || pend.del.length) await flushHistory();
+      if (pend.img.length) await flushImages();
+      if (pend.state) await flushState();
+      if (pend.keys && vaultKey) await flushKeys();
+      lastSync = Date.now();
+    } catch (e) {
+      syncErr = friendly(e);
+      scheduleFlush(30000);
+    } finally {
+      flushing = false;
+      savePending();
+      if (flushAgain) { flushAgain = false; scheduleFlush(300); }
+    }
+  }
+
+  // ---------- pull (on load) ----------
+  async function pullAll() {
+    const [hr, sr, vr] = await Promise.all([
+      sb.from("gen_history").select("id,ts,entry").order("ts", { ascending: false }).limit(200),
+      sb.from("user_state").select("prompt_log,cost").maybeSingle(),
+      sb.from("user_vault").select("blob").maybeSingle(),
+    ]);
+    if (hr.error) throw hr.error;
+    if (sr.error) throw sr.error;
+    if (vr.error) throw vr.error;
+
+    // History: the server wins, except for entries changed here and not sent yet.
+    const local = new Map(history.filter((h) => h.id).map((h) => [h.id, h]));
+    const cloudIds = new Set();
+    const merged = [];
+    (hr.data || []).forEach((r) => {
+      cloudIds.add(r.id);
+      if (pend.del.includes(r.id)) return;
+      const loc = local.get(r.id);
+      if (loc && pend.up.includes(r.id)) { merged.push(loc); return; }
+      const e = Object.assign({}, r.entry, { id: r.id, ts: Number(r.ts) || 0 });
+      const hh = entryHash(e);
+      sent[r.id] = hh;
+      if (loc && entryHash(loc) === hh) { merged.push(loc); return; }   // unchanged: keep the live object
+      if (loc && loc.thumb) e.thumb = loc.thumb;
+      merged.push(e);
+    });
+    local.forEach((h, id) => {
+      if (cloudIds.has(id)) return;
+      if (sent[id] && !pend.up.includes(id)) {   // deleted on another device
+        delete sent[id];
+        idbDo("readwrite", (s) => s.delete(id));
+        return;
+      }
+      addTo(pend.up, id);
+      merged.push(h);
+    });
+    history.filter((h) => !h.id).forEach((h) => merged.push(h));
+    merged.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    history = merged.slice(0, HISTORY_MAX);
+    saveHistory();
+    renderHistory();
+    loadHistoryThumbs();
+
+    // Prompt log + costs
+    if (sr.data && !pend.state) {
+      if (Array.isArray(sr.data.prompt_log)) plog = sr.data.prompt_log;
+      if (sr.data.cost && sr.data.cost.models) costTotal = sr.data.cost;
+      try {
+        localStorage.setItem(PLOG_KEY, JSON.stringify(plog));
+        localStorage.setItem(COST_KEY, JSON.stringify(costTotal));
+      } catch (e) {}
+      renderPlog();
+      renderCost();
+    } else if (!sr.data) {
+      pend.state = true;   // first sign-in: upload what this browser has
+    }
+
+    // API keys
+    const blob = vr.data && vr.data.blob;
+    if (blob && blob.salt) {
+      if (vaultKey && vaultSalt === blob.salt) {
+        if (!pend.keys) {
+          try { writeKeys(await unseal(blob, vaultKey)); } catch (e) { keysLocked = true; }
+        }
+      } else {
+        keysLocked = true;   // changed on another device (new password) or key not kept here
+      }
+    } else if (vaultKey) {
+      pend.keys = true;
+    }
+    savePending();
+    diffHistory();
+  }
+
+  async function fetchImages(id) {
+    if (!AUTH_UID) return null;
+    await ready;
+    if (!sb || !user) return null;
+    const { data, error } = await sb.storage.from(BUCKET).download(imgPath(id));
+    if (error || !data) return null;
+    try {
+      const rec = JSON.parse(await data.text());
+      await idbDo("readwrite", (s) => s.put(rec, id));
+      return rec;
+    } catch (e) { return null; }
+  }
+
+  // ---------- local data: move in / wipe ----------
+  function idbCopy(fromName, toName) {
+    const open = (name) => new Promise((res) => {
+      const r = indexedDB.open(name, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("imgs");
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+    });
+    return Promise.all([open(fromName), open(toName)]).then(([a, b]) => new Promise((res) => {
+      if (!a || !b) { if (a) a.close(); if (b) b.close(); return res(0); }
+      const out = [];
+      const tx = a.transaction("imgs", "readonly");
+      const cur = tx.objectStore("imgs").openCursor();
+      cur.onsuccess = () => { const c = cur.result; if (c) { out.push([c.key, c.value]); c.continue(); } };
+      tx.oncomplete = () => {
+        const tx2 = b.transaction("imgs", "readwrite");
+        out.forEach(([k, v]) => tx2.objectStore("imgs").put(v, k));
+        tx2.oncomplete = tx2.onerror = tx2.onabort = () => { a.close(); b.close(); res(out.length); };
+      };
+      tx.onerror = () => { a.close(); b.close(); res(0); };
+    }));
+  }
+  // Data made before signing in belongs to whoever used this browser; move it
+  // into the account only when asked.
+  async function offerImport(uid) {
+    if (AUTH_UID) return;
+    const n = history.filter((h) => h.id).length;
+    let hasKeys = false;
+    try { hasKeys = ["gemini_api_key", "openrouter_api_key", "anthropic_api_key"].some((k) => localStorage.getItem(k)); } catch (e) {}
+    if (!n && !hasKeys && !plog.length) return;
+    const what = [n ? "요청 기록 " + n + "건" : "", plog.length ? "프롬프트 로그" : "", hasKeys ? "저장된 API 키" : ""].filter(Boolean).join(", ");
+    if (!confirm("이 브라우저에 로그인 전에 쓰던 데이터가 있습니다 (" + what + ").\n\n" +
+      "내 계정으로 옮길까요?\n· 확인: 계정으로 옮기고, 비로그인 상태의 데이터는 이 브라우저에서 비웁니다.\n" +
+      "· 취소: 옮기지 않습니다 (로그아웃하면 다시 보입니다).")) return;
+    const p = { up: [], del: [], img: [], state: true, keys: hasKeys };
+    try {
+      ANON_KEYS.forEach((k) => {
+        const v = localStorage.getItem(k);
+        if (v == null) return;
+        if (localStorage.getItem(nsFor(uid, k)) == null) localStorage.setItem(nsFor(uid, k), v);
+      });
+      history.forEach((h) => { if (h.id) { p.up.push(h.id); if (h.nImg) p.img.push(h.id); } });
+      const old = JSON.parse(localStorage.getItem(nsFor(uid, "sync_pending_v1")) || "null");
+      if (old) { (old.up || []).forEach((x) => addTo(p.up, x)); (old.img || []).forEach((x) => addTo(p.img, x)); p.del = old.del || []; }
+      localStorage.setItem(nsFor(uid, "sync_pending_v1"), JSON.stringify(p));
+    } catch (e) { return; }
+    await idbCopy(HIST_DB, "gen_history_images:" + uid);
+    try { ANON_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+    await imgClear();
+  }
+  async function wipeLocal(uid) {
+    const pre = "u:" + uid + ":";
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(pre)) localStorage.removeItem(k);
+      }
+      if (localStorage.getItem("auth_uid") === uid) localStorage.removeItem("auth_uid");
+    } catch (e) {}
+    if (uid === AUTH_UID) { const db = await idb(); if (db) db.close(); }
+    await new Promise((r) => {
+      try {
+        const q = indexedDB.deleteDatabase("gen_history_images:" + uid);
+        q.onsuccess = q.onerror = q.onblocked = () => r();
+      } catch (e) { r(); }
+    });
+    await vaultStore("readwrite", (s) => s.delete(uid));
+  }
+
+  // ---------- sign-in flows ----------
+  const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  function newPassword() {
+    const a = $("authNew").value, b = $("authNew2").value;
+    if (a.length < 8) throw new Error("비밀번호는 8자 이상으로 정해 주세요.");
+    if (a !== b) throw new Error("비밀번호 확인이 일치하지 않습니다.");
+    return a;
+  }
+  function friendly(e) {
+    const m = String((e && (e.message || e.error_description)) || e || "");
+    if (/Invalid login credentials/i.test(m)) return "이메일 또는 비밀번호가 맞지 않습니다.";
+    if (/Email not confirmed/i.test(m)) return "메일함의 가입 확인 링크를 먼저 눌러 주세요.";
+    if (/already (registered|exists)/i.test(m)) return "이미 가입된 이메일입니다. 로그인해 주세요.";
+    if (/rate limit|too many|security purposes/i.test(m)) return "요청이 너무 많습니다. 잠시 뒤 다시 시도해 주세요.";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.";
+    return m || "알 수 없는 오류";
+  }
+
+  // After the server accepted the password: open (or create) the key vault with
+  // it, link this browser's storage to the account, then reload into it.
+  async function finishLogin(u, pw) {
+    authStatus("API 키 보관함을 여는 중…");
+    const { data: vr, error } = await sb.from("user_vault").select("blob").maybeSingle();
+    if (error) throw error;
+    const blob = vr && vr.blob;
+    let key = null, salt = null, iter = VAULT_ITER, keys = null, lost = false;
+    if (blob && blob.salt) {
+      salt = blob.salt; iter = clampIter(blob.iter);
+      key = await deriveVaultKey(pw, salt, iter);
+      try { keys = await unseal(blob, key); } catch (e) { lost = true; }
+    }
+    if (!key || lost) { salt = newSalt(); iter = VAULT_ITER; key = await deriveVaultKey(pw, salt, iter); }
+    if (lost) {
+      // The password was reset by e-mail: nobody can open the old vault any more.
+      const { error: e2 } = await sb.from("user_vault").upsert({ user_id: u.id, blob: await seal(key, salt, iter, {}), updated_at: new Date().toISOString() });
+      if (e2) throw e2;
+    }
+    await keepVaultKey(u.id, key, salt, iter);
+    if (AUTH_UID && AUTH_UID !== u.id) await wipeLocal(AUTH_UID);   // someone else's expired session
+    if (AUTH_UID !== u.id) await offerImport(u.id);
+    try {
+      if (keys) Object.entries(keys).forEach(([k, v]) => {
+        const st = nsFor(u.id, k + "_api_key");
+        if (v && ["gemini", "openrouter", "anthropic"].includes(k) && !localStorage.getItem(st)) localStorage.setItem(st, v);
+      });
+      localStorage.setItem(nsFor(u.id, "email"), u.email || "");
+      localStorage.setItem("auth_uid", u.id);
+    } catch (e) {}
+    if (lost) alert("비밀번호가 재설정되어, 예전 비밀번호로 암호화된 API 키는 복구할 수 없습니다.\n키를 다시 입력하고 저장해 주세요. (요청 기록은 그대로 있습니다)");
+    location.reload();
+  }
+
+  const AUTH = {
+    async login() {
+      const email = $("authEmail").value.trim(), pw = $("authPw").value;
+      if (!validEmail(email)) throw new Error("이메일 주소를 확인해 주세요.");
+      if (!pw) throw new Error("비밀번호를 입력해 주세요.");
+      authStatus("확인 중…");
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: await authSecret(email, pw) });
+      if (error) throw error;
+      await finishLogin(data.user, pw);
+    },
+    async signup() {
+      const email = $("authEmail").value.trim();
+      if (!validEmail(email)) throw new Error("이메일 주소를 확인해 주세요.");
+      const pw = newPassword();
+      authStatus("가입 중…");
+      const { data, error } = await sb.auth.signUp({ email, password: await authSecret(email, pw),
+        options: { emailRedirectTo: location.origin + location.pathname } });
+      if (error) throw error;
+      if (data.session) return finishLogin(data.user, pw);
+      authStatus("확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 이 화면에서 로그인해 주세요.", "ok");
+      openAuthKeep("login");
+    },
+    async forgot() {
+      const email = $("authEmail").value.trim();
+      if (!validEmail(email)) throw new Error("이메일 주소를 확인해 주세요.");
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      if (error) throw error;
+      authStatus("가입된 이메일이면 재설정 링크가 발송됩니다. 메일의 링크를 눌러 새 비밀번호를 정해 주세요.", "ok");
+    },
+    async recover() {
+      const pw = newPassword();
+      const { data: { user: u } } = await sb.auth.getUser();
+      if (!u) throw new Error("재설정 링크가 만료됐습니다. 다시 요청해 주세요.");
+      authStatus("변경 중…");
+      const { error } = await sb.auth.updateUser({ password: await authSecret(u.email, pw) });
+      if (error) throw error;
+      await finishLogin(u, pw);
+    },
+    async change() {
+      const cur = $("authPw").value;
+      const pw = newPassword();
+      if (!user) throw new Error("로그인이 필요합니다.");
+      authStatus("현재 비밀번호 확인 중…");
+      const chk = await sb.auth.signInWithPassword({ email: user.email, password: await authSecret(user.email, cur) });
+      if (chk.error) throw new Error("현재 비밀번호가 맞지 않습니다.");
+      if (keysLocked || !vaultKey) throw new Error("먼저 API 키 잠금을 해제해 주세요 (계정 메뉴를 닫고 키를 저장하면 안내가 나옵니다).");
+      authStatus("API 키를 새 비밀번호로 다시 암호화하는 중…");
+      const salt = newSalt(), key = await deriveVaultKey(pw, salt, VAULT_ITER);
+      const blob = await seal(key, salt, VAULT_ITER, readKeys());
+      const { error } = await sb.auth.updateUser({ password: await authSecret(user.email, pw) });
+      if (error) throw error;
+      const { error: e2 } = await sb.from("user_vault").upsert({ user_id: user.id, blob, updated_at: new Date().toISOString() });
+      await keepVaultKey(user.id, key, salt, VAULT_ITER);
+      if (e2) { pend.keys = true; keysVer++; savePending(); scheduleFlush(1000); }
+      authStatus("비밀번호를 바꿨습니다.", "ok");
+      setTimeout(() => $("authDlg").close(), 900);
+    },
+    async unlock() {
+      const pw = $("authPw").value;
+      if (!pw || !user) throw new Error("비밀번호를 입력해 주세요.");
+      authStatus("여는 중…");
+      const { data: vr, error } = await sb.from("user_vault").select("blob").maybeSingle();
+      if (error) throw error;
+      const blob = vr && vr.blob;
+      if (blob && blob.salt) {
+        const key = await deriveVaultKey(pw, blob.salt, blob.iter);
+        let keys;
+        try { keys = await unseal(blob, key); } catch (e) { throw new Error("비밀번호가 맞지 않습니다."); }
+        await keepVaultKey(user.id, key, blob.salt, clampIter(blob.iter));
+        if (pend.keys) {   // keys saved here while locked: keep them, fill blanks from the account
+          const cur = readKeys();
+          Object.keys(cur).forEach((k) => { if (!cur[k] && keys[k]) cur[k] = keys[k]; });
+          writeKeys(cur);
+        } else writeKeys(keys);
+      } else {
+        const chk = await sb.auth.signInWithPassword({ email: user.email, password: await authSecret(user.email, pw) });
+        if (chk.error) throw new Error("비밀번호가 맞지 않습니다.");
+        const salt = newSalt();
+        await keepVaultKey(user.id, await deriveVaultKey(pw, salt, VAULT_ITER), salt, VAULT_ITER);
+        pend.keys = true; keysVer++;
+      }
+      savePending();
+      renderAcct();
+      scheduleFlush(200);
+      $("authDlg").close();
+      setStatus("API 키 잠금을 해제했습니다.", "ok");
+    },
+  };
+
+  // ---------- dialog ----------
+  const MODES = {
+    login: ["로그인", "로그인", "로그인하면 API 키·요청 기록·프롬프트 로그·비용이 내 계정에 저장되어, 다른 브라우저에서도 이어서 볼 수 있어요."],
+    signup: ["회원가입", "가입하기", "비밀번호는 이 브라우저 밖으로 나가지 않습니다(해시만 전송). 이 비밀번호로 API 키를 암호화하므로, 잊어버려 재설정하면 저장된 키는 다시 입력해야 해요."],
+    forgot: ["비밀번호 재설정", "재설정 메일 보내기", "가입한 이메일로 재설정 링크를 보냅니다. 보안상 저장된 API 키는 새 비밀번호로 복구되지 않아 다시 입력해야 해요 (요청 기록은 그대로)."],
+    recover: ["새 비밀번호 설정", "변경하기", "새 비밀번호를 정해 주세요."],
+    change: ["비밀번호 변경", "변경하기", "저장된 API 키를 새 비밀번호로 다시 암호화합니다."],
+    unlock: ["API 키 잠금 해제", "잠금 해제", "이 브라우저에는 키 보관함을 여는 정보가 없어요. 비밀번호를 입력하면 계정에 저장된 API 키를 불러오고, 새 키도 암호화해 저장합니다."],
+  };
+  let authMode = "login", authBusy = false;
+  function authStatus(msg, cls) {
+    $("authStatus").textContent = msg || "";
+    $("authStatus").className = "status" + (cls ? " " + cls : "");
+  }
+  function layoutAuth(mode, msg) {
+    authMode = mode;
+    const [title, go, hint] = MODES[mode];
+    $("authTitle").textContent = title;
+    $("authGo").textContent = go;
+    $("authMsg").textContent = msg || hint;
+    const on = (id, v) => { $(id).hidden = !v; };
+    on("authEmailRow", ["login", "signup", "forgot"].includes(mode));
+    on("authPwRow", ["login", "change", "unlock"].includes(mode));
+    on("authNewRow", ["signup", "recover", "change"].includes(mode));
+    on("authNew2Row", ["signup", "recover", "change"].includes(mode));
+    $("authPwLabel").textContent = mode === "change" ? "현재 비밀번호" : "비밀번호";
+    on("authToSignup", mode === "login");
+    on("authToForgot", mode === "login");
+    on("authToLogin", mode === "signup" || mode === "forgot");
+    $("authLinks").hidden = !["login", "signup", "forgot"].includes(mode);
+    ["authPw", "authNew", "authNew2"].forEach((id) => { $(id).value = ""; });
+  }
+  function openAuth(mode, email, msg) {
+    layoutAuth(mode, msg);
+    authStatus("");
+    if (email != null) $("authEmail").value = email;
+    if (!$("authDlg").open) $("authDlg").showModal();
+    const first = ["authEmail", "authPw", "authNew"].find((id) => !$(id).closest("fieldset").hidden && !$(id).value);
+    if (first) $(first).focus();
+  }
+  function openAuthKeep(mode) { layoutAuth(mode); }   // switch form, keep the status line
+  $("authForm").onsubmit = async (ev) => {
+    ev.preventDefault();
+    if (authBusy || !sb) return;
+    authBusy = true; $("authGo").disabled = true;
+    try { await AUTH[authMode](); }
+    catch (e) { authStatus(friendly(e), "err"); }
+    finally { authBusy = false; $("authGo").disabled = false; }
+  };
+  $("authCancel").onclick = () => $("authDlg").close();
+  $("authToSignup").onclick = () => openAuth("signup");
+  $("authToForgot").onclick = () => openAuth("forgot");
+  $("authToLogin").onclick = () => openAuth("login");
+
+  // ---------- header menu ----------
+  function renderSync() {
+    if (!user) return;
+    const n = pendingCount();
+    let t;
+    if (keysLocked) t = "API 키가 잠겨 있습니다 — 키를 저장하면 비밀번호를 물어봅니다.";
+    else if (syncErr) t = "동기화 실패: " + syncErr + " (잠시 뒤 다시 시도)";
+    else if (flushing) t = "계정에 저장 중…";
+    else if (n) t = "올릴 항목 " + n + "개 대기 중";
+    else t = "모두 저장됨" + (lastSync ? " · " + new Date(lastSync).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) : "");
+    $("acctSync").textContent = t + (imgNote ? " " + imgNote : "");
+  }
+  function renderAcct() {
+    $("acct").hidden = false;
+    if (user) {
+      $("acctBtn").textContent = user.email || "내 계정";
+      $("acctEmail").textContent = user.email || "";
+      $("apikeyHint").textContent = "로그인됨: 키는 내 비밀번호로 암호화되어 계정에 저장됩니다(서버·운영자도 볼 수 없음). 이 브라우저에는 로그아웃할 때까지만 남습니다.";
+      $("costTLabel").textContent = "누적 (내 계정)";
+      renderSync();
+    } else {
+      $("acctBtn").textContent = AUTH_UID ? "다시 로그인" : "로그인";
+    }
+  }
+  $("acctBtn").onclick = (e) => {
+    e.stopPropagation();
+    if (!sb) return;
+    if (!user) {
+      let email = "";
+      try { email = AUTH_UID ? localStorage.getItem(nsFor(AUTH_UID, "email")) || "" : ""; } catch (x) {}
+      return openAuth("login", email);
+    }
+    const pop = $("acctPop"); pop.hidden = !pop.hidden;
+    $("acctBtn").setAttribute("aria-expanded", String(!pop.hidden));
+    renderSync();
+  };
+  $("acctPop").onclick = (e) => e.stopPropagation();
+  document.addEventListener("click", () => { $("acctPop").hidden = true; $("acctBtn").setAttribute("aria-expanded", "false"); });
+  $("acctPw").onclick = () => { $("acctPop").hidden = true; openAuth("change"); };
+  $("acctOut").onclick = async () => {
+    $("acctPop").hidden = true;
+    if (pendingCount()) { clearTimeout(flushTimer); await flushAll(); }
+    if (pendingCount() && !confirm("아직 계정에 올라가지 않은 항목이 " + pendingCount() + "개 있습니다.\n로그아웃하면 이 브라우저에서 지워져 잃게 됩니다. 계속할까요?")) return;
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+    await wipeLocal(AUTH_UID);
+    location.reload();
+  };
+  // Signed in / out in another tab: follow it.
+  window.addEventListener("storage", (e) => { if (e.key === "auth_uid" && e.newValue !== AUTH_UID) location.reload(); });
+  window.addEventListener("beforeunload", (e) => { if (flushing) { e.preventDefault(); e.returnValue = ""; } });
+
+  // ---------- hooks used by the rest of the page ----------
+  Object.assign(Cloud, {
+    on: !!AUTH_UID,
+    historyChanged() { if (!AUTH_UID) return; clearTimeout(diffTimer); diffTimer = setTimeout(diffHistory, 400); },
+    imagesChanged(id) {
+      if (!AUTH_UID) return;
+      imgVer[id] = (imgVer[id] || 0) + 1;
+      addTo(pend.img, id); savePending(); scheduleFlush(1500);
+    },
+    imagesDeleted(id) {
+      if (!AUTH_UID) return;
+      pend.img = pend.img.filter((x) => x !== id); savePending();
+    },
+    fetchImages,
+    stateChanged() { if (!AUTH_UID) return; stateVer++; pend.state = true; savePending(); scheduleFlush(2000); },
+    keysChanged() {
+      if (!AUTH_UID) return;
+      keysVer++; pend.keys = true; savePending();
+      if (user && (!vaultKey || keysLocked)) openAuth("unlock");
+      else scheduleFlush(300);
+    },
+  });
+
+  // ---------- start ----------
+  function loadSupabase() {
+    return new Promise((resolve, reject) => {
+      if (window.supabase && window.supabase.createClient) return resolve(window.supabase);
+      const s = document.createElement("script");
+      s.src = SB_SRC; s.integrity = SB_SRI; s.crossOrigin = "anonymous"; s.referrerPolicy = "no-referrer";
+      s.onload = () => (window.supabase ? resolve(window.supabase) : reject(new Error("로그인 모듈 오류")));
+      s.onerror = () => reject(new Error("로그인 모듈을 불러오지 못했습니다"));
+      document.head.appendChild(s);
+    });
+  }
+  let recovering = false;
+  (async function start() {
+    renderAcct();
+    $("acctBtn").textContent = "…";
+    try {
+      const lib = await loadSupabase();
+      sb = lib.createClient(SUPABASE_CFG.url, SUPABASE_CFG.key, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      });
+    } catch (e) {
+      $("acctBtn").textContent = "로그인 불가";
+      $("acctBtn").title = friendly(e);
+      readyResolve();
+      return;
+    }
+    // Callbacks must not await Supabase calls themselves (library deadlock).
+    sb.auth.onAuthStateChange((ev) => {
+      if (ev === "PASSWORD_RECOVERY") { recovering = true; setTimeout(() => openAuth("recover"), 0); }
+      else if (ev === "SIGNED_OUT" && user) { user = null; setTimeout(renderAcct, 0); }
+    });
+    const { data: { session } } = await sb.auth.getSession();
+    const u = session && session.user;
+    if (AUTH_UID) {
+      if (!u || u.id !== AUTH_UID) {
+        if (!pendingCount()) {           // expired and nothing unsaved: drop the local copy
+          await wipeLocal(AUTH_UID);
+          location.reload();
+          return;
+        }
+        renderAcct();
+        readyResolve();
+        let email = "";
+        try { email = localStorage.getItem(nsFor(AUTH_UID, "email")) || ""; } catch (e) {}
+        if (!recovering) openAuth("login", email, "로그인이 만료됐어요. 다시 로그인하면 아직 올리지 못한 기록을 계정에 올립니다.");
+        return;
+      }
+      user = u;
+      const v = await vaultStore("readonly", (s) => s.get(u.id));
+      if (v && v.key) { vaultKey = v.key; vaultSalt = v.salt; vaultIter = clampIter(v.iter); } else keysLocked = true;
+      renderAcct();
+      readyResolve();
+      try { await pullAll(); } catch (e) { syncErr = friendly(e); }
+      renderAcct();
+      scheduleFlush(500);
+    } else {
+      renderAcct();
+      readyResolve();
+      // Signed in on the server but not in this page yet (e.g. just confirmed the
+      // sign-up e-mail): the password is needed once to open the key vault.
+      if (u && !recovering) openAuth("login", u.email || "", "이메일 인증이 완료됐어요. 비밀번호를 한 번 더 입력하면 로그인이 끝납니다.");
+    }
+  })();
 })();
 </script>
 </body>
