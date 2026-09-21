@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>이커머스 이미지 생성기</title>
+<script>
+(function () {
+  var cfg = {"url": "https://phwvszpxwjggllnqljqr.supabase.co", "key": "sb_publishable_ewwtQT-jLOQLvMnFbFCBHg_fIN5Hx_D"}, uid = null;
+  try { uid = localStorage.getItem("auth_uid"); } catch (e) {}
+  if (cfg && !uid) document.documentElement.classList.add("need-login");
+})();
+</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
 :root {
@@ -309,6 +316,16 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
 .cost-pop .foot { display: flex; justify-content: flex-end; margin-top: 10px; }
 .cost-pop .foot button { font-size: 12px; padding: 4px 10px; }
 @media (max-width: 860px) { .cost { order: 5; } .cost-pop { left: 0; right: auto; } }
+#gate { display: none; }
+html.need-login #gate { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 24px 16px; }
+html.need-login .wrap { display: none; }
+.gate-box { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; text-align: center; }
+.gate-box h1 { font-size: 21px; font-weight: 700; margin-bottom: 8px; }
+.gate-box p { color: var(--ink-soft); font-size: 13.5px; line-height: 1.6; margin-bottom: 20px; }
+.gate-acts { display: flex; gap: 8px; justify-content: center; }
+.gate-acts button { width: auto; padding: 10px 18px; }
+#gateErr { margin-top: 12px; }
+#gateErr:empty { display: none; }
 .acct-email { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; word-break: break-all; }
 .acct .cost-pop { width: min(300px, calc(100vw - 32px)); }
 .acct .cost-pop .note { margin-top: 6px; }
@@ -323,11 +340,22 @@ body.mode-detail .wrap, body.mode-set .wrap { max-width: 1340px; }
 <style id="dpcss"></style>
 </head>
 <body>
+<div id="gate">
+  <div class="gate-box">
+    <h1>이커머스 이미지 생성기</h1>
+    <p>로그인 후 사용할 수 있어요.<br>API 키와 요청 기록은 계정별로 저장되고, 키는 내 비밀번호로 암호화됩니다.</p>
+    <div class="gate-acts">
+      <button type="button" id="gateSignup">회원가입</button>
+      <button type="button" class="primary" id="gateLogin">로그인</button>
+    </div>
+    <div class="status err" id="gateErr"></div>
+  </div>
+</div>
 <div class="wrap">
   <header>
     <h1>이커머스 이미지 생성기</h1>
     <span class="sub">상품사진 → 대표이미지 · 착용샷 · 연출컷 · 스마트스토어 세트 · 상세페이지 (Gemini / Nano Banana)</span>
-    <span class="sub" id="buildStamp" title="이 화면이 어느 빌드인지 확인용">빌드 09-21 13:46</span>
+    <span class="sub" id="buildStamp" title="이 화면이 어느 빌드인지 확인용">빌드 09-21 14:00</span>
     <nav class="tabs" role="tablist" aria-label="작업 종류">
       <button type="button" role="tab" id="tabSingle" aria-selected="true">이미지 생성</button>
       <button type="button" role="tab" id="tabSet" aria-selected="false">스마트스토어 세트</button>
@@ -5648,6 +5676,8 @@ $("ssZip").onclick = async () => {
   let keysLocked = false;
   let readyResolve;
   const ready = new Promise((r) => { readyResolve = r; });
+  // Login is required: the app stays behind the gate until someone is signed in here.
+  const gate = (on) => document.documentElement.classList.toggle("need-login", !!on);
 
   // ---------- crypto ----------
   const te = new TextEncoder();
@@ -6236,6 +6266,8 @@ $("ssZip").onclick = async () => {
   $("authToSignup").onclick = () => openAuth("signup");
   $("authToForgot").onclick = () => openAuth("forgot");
   $("authToLogin").onclick = () => openAuth("login");
+  $("gateLogin").onclick = () => { if (sb) openAuth("login"); };
+  $("gateSignup").onclick = () => { if (sb) openAuth("signup"); };
 
   // ---------- header menu ----------
   function renderSync() {
@@ -6334,13 +6366,15 @@ $("ssZip").onclick = async () => {
     } catch (e) {
       $("acctBtn").textContent = "로그인 불가";
       $("acctBtn").title = friendly(e);
+      $("gateErr").textContent = friendly(e) + " 새로고침해 주세요.";
+      gate(true);
       readyResolve();
       return;
     }
     // Callbacks must not await Supabase calls themselves (library deadlock).
     sb.auth.onAuthStateChange((ev) => {
       if (ev === "PASSWORD_RECOVERY") { recovering = true; setTimeout(() => openAuth("recover"), 0); }
-      else if (ev === "SIGNED_OUT" && user) { user = null; setTimeout(renderAcct, 0); }
+      else if (ev === "SIGNED_OUT" && user) { user = null; setTimeout(() => { renderAcct(); gate(true); }, 0); }
     });
     const { data: { session } } = await sb.auth.getSession();
     const u = session && session.user;
@@ -6352,6 +6386,7 @@ $("ssZip").onclick = async () => {
           return;
         }
         renderAcct();
+        gate(true);
         readyResolve();
         let email = "";
         try { email = localStorage.getItem(nsFor(AUTH_UID, "email")) || ""; } catch (e) {}
@@ -6359,6 +6394,7 @@ $("ssZip").onclick = async () => {
         return;
       }
       user = u;
+      gate(false);
       const v = await vaultStore("readonly", (s) => s.get(u.id));
       if (v && v.key) { vaultKey = v.key; vaultSalt = v.salt; vaultIter = clampIter(v.iter); } else keysLocked = true;
       renderAcct();
