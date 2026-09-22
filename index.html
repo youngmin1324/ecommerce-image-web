@@ -135,6 +135,29 @@ dialog.dlg::backdrop { background: rgba(0,0,0,0.45); }
 .dlg-acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
 .dlg-acts button { width: auto; padding: 9px 14px; font-size: 13.5px; }
 .dlg pre.promptbox { max-height: 60vh; margin: 0; }
+.sec-opts { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); flex-wrap: wrap; }
+.sec-opts label { display: inline-flex; align-items: center; gap: 3px; color: var(--ink); cursor: pointer; }
+.sec-opts input { width: auto; margin: 0; }
+.sec-opts em { font-style: normal; opacity: .75; }
+.runbar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 10px;
+  max-width: calc(100vw - 32px); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 13.5px; }
+.runbar[hidden] { display: none; }
+.runbar #dpRunText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runbar .spin { margin-right: 0; flex: none; }
+.runbar button { width: auto; padding: 6px 14px; font-size: 13px; border-radius: 999px; flex: none; }
+#dpGenAll.stop { border-color: var(--accent); color: var(--accent); }
+.rvatt { font-size: 12.5px; color: var(--ink-soft); margin: 2px 0 6px; }
+.rvqa { margin: 6px 0 4px; font-size: 12.5px; color: var(--ink-soft); }
+.rvqa summary { cursor: pointer; line-height: 1.5; }
+.rvqa pre.promptbox { max-height: 240px; margin-top: 6px; font-size: 12px; white-space: pre-wrap; }
+.comp-stage { background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border-radius: 10px; overflow: hidden; text-align: center; }
+.comp-stage canvas { display: block; margin: 0 auto; max-width: 100%; max-height: 58vh; cursor: grab; touch-action: none; }
+.comp-stage canvas.dragging { cursor: grabbing; }
+.comp-ctrls { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 10px; font-size: 13px; align-items: center; }
+.comp-ctrls label { display: flex; align-items: center; gap: 6px; }
+.comp-ctrls select { width: auto; }
+.comp-ctrls input[type=range] { width: 130px; }
 /* full-size image viewer */
 dialog.viewer { width: min(96vw, 1500px); padding: 10px; }
 dialog.viewer img { max-height: calc(100vh - 110px); max-width: 100%; width: auto; cursor: zoom-out; margin-bottom: 0; }
@@ -331,6 +354,9 @@ button.mini { padding: 3px 9px; font-size: 12px; border-radius: 6px; }
 .dp-editor [contenteditable]:hover { outline: 1px dashed rgba(201,100,66,0.6); outline-offset: 3px; }
 .dp-editor [contenteditable]:focus { outline: 2px solid #C96442; outline-offset: 3px; }
 .dp-editor [contenteditable]:empty::before { content: attr(data-ph); color: #b5b2aa; }
+/* 비어 있는 라벨은 '채워야 할 빈칸'이 아니라 선택 칸으로 보이게: 점선·흐리게. 내보내기에서는 빠진다. */
+.dp-editor .dp-label:empty:not(:focus) { border: 1.5px dashed #d3d0c8 !important; background: transparent !important; opacity: .7; }
+.dp-editor .dp-label:empty::before { content: "+ 라벨 (선택)"; font-weight: 500; letter-spacing: 0; }
 .cost { position: relative; }
 .cost > button { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cost > button .k { color: var(--ink-soft); font-weight: 500; font-size: 12px; }
@@ -394,7 +420,7 @@ html.need-login .wrap { display: none; }
 <div class="wrap headwrap">
   <header>
     <h1>이커머스 이미지 생성기</h1>
-    <span class="sub">상품사진 → 대표이미지 · 착용샷 · 연출컷 · 스마트스토어 세트 · 상세페이지 (Gemini / Nano Banana)</span>
+    <span class="sub">상품사진 → 대표이미지 · 착용샷 · 연출컷 · 스마트스토어 세트 · 상세페이지 (Gemini · OpenAI GPT Image)</span>
     <div class="hdr-right">
       <div class="cost" id="cost">
         <button type="button" id="costBtn" aria-haspopup="true" aria-expanded="false" title="오늘 API 사용 비용 (추정) · 클릭하면 상세"><span class="k">오늘</span><span id="costToday">$0.00</span></button>
@@ -428,6 +454,8 @@ html.need-login .wrap { display: none; }
       <button type="button" role="tab" id="tabSingle" aria-selected="true">이미지 생성</button>
       <button type="button" role="tab" id="tabSet" aria-selected="false">스마트스토어 세트</button>
       <button type="button" role="tab" id="tabDetail" aria-selected="false">상세페이지 만들기</button>
+      <!-- 실사 합성 탭: 준비 중이라 숨김. 주소 뒤에 ?comp=1 을 붙이면 보인다. -->
+      <button type="button" role="tab" id="tabComp" aria-selected="false" hidden>실사 합성</button>
     </nav>
   </header>
 </div>
@@ -441,6 +469,7 @@ html.need-login .wrap { display: none; }
           <select id="backend">
             <option value="gemini" selected>Gemini 직접 (Google AI Studio 키)</option>
             <option value="openrouter">OpenRouter</option>
+            <option value="openai">OpenAI 직접 (GPT Image)</option>
           </select>
         </fieldset>
 
@@ -457,8 +486,19 @@ html.need-login .wrap { display: none; }
           <summary>모델 설정</summary>
           <fieldset>
             <label class="top" for="model">이미지 모델</label>
+            <select id="modelPick" aria-label="이미지 모델 선택" style="display:none;margin-bottom:8px"></select>
             <input type="text" id="model" value="gemini-3.1-flash-image">
             <div class="hint" id="modelHint">예: gemini-3.1-flash-image (기본) · gemini-3-pro-image (고품질)</div>
+          </fieldset>
+          <fieldset id="oaQualityRow" style="display:none">
+            <label class="top" for="oaQuality">이미지 품질 <span class="tag">OpenAI</span></label>
+            <select id="oaQuality">
+              <option value="high" selected>high (상품 충실도 우선)</option>
+              <option value="medium">medium</option>
+              <option value="low">low (시안용 · 저렴)</option>
+              <option value="auto">auto</option>
+            </select>
+            <div class="hint">상품샷이 있으면 input_fidelity=high로 보내 원본 형태·로고·질감을 최대한 유지합니다.</div>
           </fieldset>
           <fieldset style="margin-bottom:0">
             <label class="top" for="textModel">텍스트 모델 <span class="tag">상세페이지 구성·카피</span></label>
@@ -490,6 +530,22 @@ html.need-login .wrap { display: none; }
           <input type="checkbox" id="firstCheck" checked>
           여러 장 만들 때 첫 장 확인 후 진행 <span class="tag">원하는 느낌인지 먼저 확인 · 비용 절약</span>
         </label>
+        <label class="viewcheck" style="margin:8px 0 0">
+          <input type="checkbox" id="specCheck" checked>
+          상품 디테일 자동 추출 <span class="tag">스트랩 개수·패턴·로고를 글로 적어 프롬프트에 추가</span>
+        </label>
+        <label class="viewcheck" style="margin:8px 0 0">
+          <input type="checkbox" id="qaCheck" checked>
+          생성 후 상품 일치 검사 <span class="tag">원본 사진과 비교 · 이미지당 텍스트 호출 1번</span>
+        </label>
+        <div class="row" id="qaRow" style="margin-top:6px;align-items:center;gap:8px;font-size:13px">
+          <span style="white-space:nowrap">불일치면 자동 수정</span>
+          <select id="qaRetry" aria-label="자동 수정 횟수">
+            <option value="0">안 함 (검사만)</option>
+            <option value="1" selected>최대 1회</option>
+            <option value="2">최대 2회</option>
+          </select>
+        </div>
       </div>
 
       <div class="panel" id="panelSingle">
@@ -562,7 +618,40 @@ html.need-login .wrap { display: none; }
           생성 전 각도 확인 <span class="tag">상품샷에 없는 각도면 생성 중단</span>
         </label>
         <button class="primary" id="go" type="button">이미지 생성</button>
+        <button id="gptCopy" type="button" style="width:100%;margin-top:8px" title="API 키 없이 ChatGPT 구독으로: 프롬프트를 복사해 ChatGPT에 붙여넣습니다">ChatGPT용 프롬프트 복사 (API 키 불필요)</button>
         <div class="status" id="status"></div>
+      </div>
+
+      <div class="panel" id="panelComp" style="display:none">
+        <div class="hint" style="margin:0 0 12px">AI는 배경만 만들고, 상품은 원본 사진에서 배경을 지운 픽셀을 그대로 얹습니다. 그 뒤 AI가 상품에 맞춰 빛·그림자를 다시 그리고, 상품 자리는 원본으로 다시 덮어요. 사람이 신거나 든 컷에는 맞지 않습니다.</div>
+        <fieldset>
+          <label class="top">상품샷 <span class="tag">누끼 PNG면 가장 정확</span></label>
+          <div class="drop" id="dropProduct4" tabindex="0">클릭 · 드래그 · 붙여넣기(⌘V)</div>
+          <input type="file" id="fileProduct4" accept="image/png,image/jpeg,image/webp" multiple hidden>
+          <div class="thumbs" id="thumbsProduct4"></div>
+          <div class="hint">다른 탭의 상품샷과 같은 목록입니다. 첫 장을 씁니다(편집 창에서 바꿀 수 있어요).</div>
+        </fieldset>
+        <fieldset>
+          <label class="top" for="compSubject">상품 설명</label>
+          <input type="text" id="compSubject" placeholder="예: 블랙 쿠션 슬리퍼">
+        </fieldset>
+        <fieldset>
+          <label class="top" for="compScene">장면</label>
+          <textarea id="compScene" placeholder="예: 햇살 드는 거실 원목 바닥, 따뜻한 오후 톤" style="min-height:60px"></textarea>
+          <label class="viewcheck" style="margin:8px 0 0"><input type="checkbox" id="compWhite"> 흰 배경 (AI 배경 생성 없이)</label>
+        </fieldset>
+        <div class="row">
+          <select id="compRatio" aria-label="비율">
+            <option value="1:1">1:1</option><option value="4:5" selected>4:5</option><option value="3:4">3:4</option>
+            <option value="9:16">9:16</option><option value="16:9">16:9</option>
+          </select>
+          <select id="compCount" aria-label="장수">
+            <option value="1" selected>1장</option><option value="2">2장</option><option value="3">3장</option>
+          </select>
+        </div>
+        <label class="viewcheck"><input type="checkbox" id="compAuto" checked> AI로 자연스럽게까지 자동 진행 <span class="tag">장당 AI 호출 2번</span></label>
+        <button class="primary" id="compGo" type="button">실사 합성 생성</button>
+        <div class="status" id="compStatus"></div>
       </div>
 
       <div class="panel" id="panelSet" style="display:none">
@@ -786,6 +875,10 @@ html.need-login .wrap { display: none; }
   </div>
 </div>
 
+<div id="dpRunBar" class="runbar" hidden role="status" aria-live="polite">
+  <span class="spin dark"></span><span id="dpRunText"></span>
+  <button type="button" id="dpRunStop" title="지금 만드는 이미지까지만 완성하고 멈춥니다">중단</button>
+</div>
 <dialog id="ckDlg" class="dlg">
   <div class="dlg-title">첫 장이 원하는 느낌인가요?</div>
   <img id="ckImg" alt="첫 결과">
@@ -817,12 +910,29 @@ html.need-login .wrap { display: none; }
     <button type="button" class="primary" id="promptClose">닫기</button>
   </div>
 </dialog>
+<dialog id="compDlg" class="dlg" style="width:min(920px, calc(100vw - 32px))">
+  <div class="dlg-title">실사 합성 — 상품 위치·크기 맞추기</div>
+  <div class="hint">상품을 드래그해 자리·크기를 잡은 뒤 <b>AI로 자연스럽게</b>를 누르면, AI가 이 상품에 맞춰 바닥·빛·그림자를 다시 그리고 상품은 원본 픽셀로 덮습니다. 배경은 대략적인 분위기만 맞으면 됩니다.</div>
+  <div class="comp-stage"><canvas id="compCanvas"></canvas></div>
+  <div class="comp-ctrls">
+    <label>상품 사진 <select id="compSrc"></select></label>
+    <label>크기 <input type="range" id="compScale" min="5" max="100" value="50"></label>
+    <label>그림자 <input type="range" id="compShadow" min="0" max="100" value="45"></label>
+    <label>밝기 <input type="range" id="compBright" min="85" max="115" value="100"></label>
+  </div>
+  <div class="hint" id="compInfo"></div>
+  <div class="dlg-acts">
+    <button type="button" id="compCancel">취소</button>
+    <button type="button" id="compOk" title="캔버스 그림자만 넣어 바로 저장합니다 (AI 호출 없음)">그대로 적용</button>
+    <button type="button" class="primary" id="compHarm" title="AI가 상품에 맞춰 원근·빛 방향·그림자·반사를 다시 그리고, 상품은 원본 픽셀로 다시 덮습니다">AI로 자연스럽게 (추천)</button>
+  </div>
+</dialog>
 <dialog id="rvDlg" class="dlg" style="width:min(820px, calc(100vw - 32px))">
   <div class="dlg-title">이미지 프롬프트 검토</div>
   <div class="hint">이미지 모델에 이대로 보냅니다. 고친 내용은 그 섹션에 저장되고, 나중에 다시 생성할 때도 쓰여요.</div>
   <div id="rvList"></div>
   <div class="dlg-acts">
-    <button type="button" id="rvCancel">구성만 두고 닫기</button>
+    <button type="button" id="rvCancel">생성하지 않고 닫기</button>
     <button type="button" class="primary" id="rvGo">이대로 이미지 생성</button>
   </div>
 </dialog>
@@ -897,6 +1007,7 @@ const EDIT_CONSTRAINTS = "Seamless, photorealistic edit; keep the original light
 const textConstraints = (lang) => "Professional e-commerce graphic design quality, not a plain product photo; the product photographed realistically and integrated into a designed layout; headline, labels, icons, and callouts are part of the design — keep text short, large, legible, and correctly spelled (" + lang + "); no watermark; no AI-tell artifacts (fused edges, garbled letters, warped product)";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 const OR_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OA_BASE = "https://api.openai.com/v1";
 
 const BACKENDS = {
   gemini: {
@@ -914,12 +1025,37 @@ const BACKENDS = {
     keyStore: nsKey("openrouter_api_key"),
     keyLabel: "OpenRouter API 키",
     keyPlaceholder: "sk-or-... (openrouter.ai/keys)",
-    defaultModel: "google/gemini-2.5-flash-image",
-    modelHint: "예: google/gemini-2.5-flash-image · black-forest-labs/flux.2-pro · bytedance/seedream-4.5",
+    defaultModel: "google/gemini-3.1-flash-lite-image",
+    modelHint: "목록에 없는 모델은 '직접 입력'을 고르고 모델 ID를 적으세요 (예: black-forest-labs/flux.2-pro).",
+    // 이미지 모델 콤보박스 기본 목록. 페이지를 열면 OpenRouter 모델 목록으로 새로 채운다.
+    imageModels: [
+      ["Nano Banana (Google)", [
+        ["google/gemini-3.1-flash-image", "Nano Banana 2 (Gemini 3.1 Flash Image)"],
+        ["google/gemini-3-pro-image", "Nano Banana Pro (Gemini 3 Pro Image) · 고품질"],
+        ["google/gemini-2.5-flash-image", "Nano Banana (Gemini 2.5 Flash Image)"],
+        ["google/gemini-3.1-flash-lite-image", "Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)"],
+      ]],
+      ["GPT Image (OpenAI)", [
+        ["openai/gpt-5.4-image-2", "GPT-5.4 Image 2"],
+        ["openai/gpt-5-image", "GPT-5 Image"],
+        ["openai/gpt-5-image-mini", "GPT-5 Image Mini"],
+      ]],
+    ],
     defaultTextModel: "google/gemini-2.5-flash",
     textModelHint: "예: google/gemini-2.5-flash · anthropic/claude-sonnet-5 · openai/gpt-5",
     defaultLightModel: "google/gemini-2.5-flash-lite",
     lightModelHint: "예: google/gemini-2.5-flash-lite · anthropic/claude-haiku-4.5. 모델을 못 찾으면 위 텍스트 모델로 자동 대체합니다.",
+  },
+  openai: {
+    keyStore: nsKey("openai_api_key"),
+    keyLabel: "OpenAI API 키",
+    keyPlaceholder: "sk-... (platform.openai.com/api-keys)",
+    defaultModel: "gpt-image-2",
+    modelHint: "예: gpt-image-2 (기본) · gpt-image-2.5-sunburst (정밀 편집) · gpt-image-2.5-flare (빠름) · gpt-image-1.5. 계정에 열린 모델명을 쓰세요.",
+    defaultTextModel: "gpt-5",
+    textModelHint: "예: gpt-5 (기본) · gpt-5-mini",
+    defaultLightModel: "gpt-5-mini",
+    lightModelHint: "예: gpt-5-mini (기본). 모델을 못 찾으면 위 텍스트 모델로 자동 대체합니다.",
   },
 };
 
@@ -971,8 +1107,62 @@ function applyBackendUI() {
   $("modelHint").textContent = be.modelHint;
   $("textModelHint").textContent = be.textModelHint;
   $("lightModelHint").textContent = be.lightModelHint;
+  $("oaQualityRow").style.display = $("backend").value === "openai" ? "" : "none";
+  modelCustom = false;
+  renderModelPick();
   loadKeyFor(be);
 }
+
+// ---- 이미지 모델 콤보박스 (모델 목록이 있는 백엔드만: 지금은 OpenRouter) ----
+const MODEL_CUSTOM = "__custom";
+let modelCustom = false;   // '직접 입력'을 골랐는지
+function renderModelPick() {
+  const be = currentBackend(), sel = $("modelPick"), inp = $("model");
+  if (!be.imageModels) { sel.style.display = "none"; inp.style.display = ""; return; }
+  const cur = inp.value.trim();
+  sel.innerHTML = "";
+  let found = false;
+  be.imageModels.forEach(([group, rows]) => {
+    const og = document.createElement("optgroup");
+    og.label = group;
+    rows.forEach(([id, name]) => {
+      const o = document.createElement("option");
+      o.value = id; o.textContent = name;
+      if (id === cur) found = true;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+  const c = document.createElement("option");
+  c.value = MODEL_CUSTOM; c.textContent = "직접 입력…";
+  sel.appendChild(c);
+  if (!found) modelCustom = true;
+  sel.value = modelCustom ? MODEL_CUSTOM : cur;
+  sel.style.display = "";
+  inp.style.display = modelCustom ? "" : "none";
+}
+$("modelPick").onchange = () => {
+  const v = $("modelPick").value;
+  modelCustom = v === MODEL_CUSTOM;
+  if (!modelCustom) $("model").value = v;
+  $("model").style.display = modelCustom ? "" : "none";
+  if (modelCustom) $("model").focus();
+  saveBackendSettings();
+};
+// OpenRouter 공개 모델 목록(키 불필요)에서 Google·OpenAI 이미지 생성 모델을 새로 가져온다.
+// 실패하면 위의 기본 목록을 그대로 쓴다.
+(async function refreshORImageModels() {
+  try {
+    const j = await (await fetch("https://openrouter.ai/api/v1/models")).json();
+    const pick = (prefix) => (j.data || [])
+      .filter((m) => m.id.startsWith(prefix) && (m.architecture?.output_modalities || []).includes("image"))
+      .map((m) => [m.id, String(m.name || m.id).replace(/^(Google|OpenAI):\s*/, "")]);
+    const g = pick("google/"), o = pick("openai/");
+    if (!g.length && !o.length) return;
+    BACKENDS.openrouter.imageModels = [["Nano Banana (Google)", g], ["GPT Image (OpenAI)", o]].filter(([, r]) => r.length);
+    if ($("backend").value === "openrouter") { modelCustom = false; renderModelPick(); }
+  } catch (e) {}
+})();
 
 // ---- Text model: the chosen backend, or the Anthropic API ----
 // Text only — Claude does not generate images, the image backend does.
@@ -1009,15 +1199,24 @@ function saveBackendSettings() {
   st.models[st.backend] = { model: $("model").value.trim(), textModel: $("textModel").value.trim(), lightModel: $("lightModel").value.trim() };
   st.textEngine = $("textEngine").value;
   st.anthropicModel = $("anthropicModel").value.trim();
+  st.oaQuality = $("oaQuality").value;
+  st.qa = { spec: $("specCheck").checked, check: $("qaCheck").checked, retry: $("qaRetry").value };
   try { localStorage.setItem(BKEY, JSON.stringify(st)); } catch (e) {}
 }
 $("backend").onchange = () => { applyBackendUI(); saveBackendSettings(); };
-["model", "textModel", "lightModel"].forEach((id) => { $(id).addEventListener("change", saveBackendSettings); });
+["specCheck", "qaCheck", "qaRetry"].forEach((id) => $(id).addEventListener("change", () => {
+  $("qaRow").style.display = $("qaCheck").checked ? "" : "none";
+  saveBackendSettings();
+}));
+["model", "textModel", "lightModel", "oaQuality"].forEach((id) => { $(id).addEventListener("change", saveBackendSettings); });
 (function restoreBackend() {
   const st = loadBackendSettings();
   if (st.backend && BACKENDS[st.backend]) $("backend").value = st.backend;
   if (st.textEngine === "anthropic") $("textEngine").value = st.textEngine;
   if (st.anthropicModel) $("anthropicModel").value = st.anthropicModel;
+  if (st.oaQuality) $("oaQuality").value = st.oaQuality;
+  if (st.qa) { $("specCheck").checked = st.qa.spec !== false; $("qaCheck").checked = st.qa.check !== false; if (st.qa.retry != null) $("qaRetry").value = st.qa.retry; }
+  $("qaRow").style.display = $("qaCheck").checked ? "" : "none";
   applyTextEngineUI();
 })();
 $("savekey").onclick = () => {
@@ -1172,6 +1371,7 @@ function missingRequired() {
 
 // ---- Prompt assembly (mirrors the skill's 5-slot spirit) ----
 function assemblePrompt() {
+  const spec = cachedSpecLine(singleProductRefs());
   return buildPrompt({
     s: SCENARIOS[scenarioSel.value],
     vkey: variantSel.value,
@@ -1180,7 +1380,7 @@ function assemblePrompt() {
     fill: currentFill(),
     nProduct: singleProductRefs().length,
     nStyle: styleRefs.length,
-  });
+  }) + (spec ? "\n" + spec : "");
 }
 // Strip unresolved "{placeholder}" tokens and the words left dangling around them.
 function stripPlaceholders(v) {
@@ -1523,8 +1723,9 @@ const ZONES = {
   style:   { list: styleRefs,   drop: "dropStyle",   file: "fileStyle",   thumbs: "thumbsStyle" },
   product2: { list: productRefs, drop: "dropProduct2", file: "fileProduct2", thumbs: "thumbsProduct2" },
   product3: { list: productRefs, drop: "dropProduct3", file: "fileProduct3", thumbs: "thumbsProduct3" },
+  product4: { list: productRefs, drop: "dropProduct4", file: "fileProduct4", thumbs: "thumbsProduct4" },
 };
-const ZONE_KR = { product: "상품샷", product2: "상품샷", product3: "상품샷", style: "레퍼런스" };
+const ZONE_KR = { product: "상품샷", product2: "상품샷", product3: "상품샷", product4: "상품샷", style: "레퍼런스" };
 const zoneLabel = (z) => ZONE_KR[z] || z;
 const isDetailZone = (z) => z === "product2";
 let activeZone = "product";   // where a paste lands
@@ -1602,6 +1803,7 @@ document.addEventListener("paste", (e) => {
   addFiles(files, activeZone);
   const msg = files.length + "장을 " + zoneLabel(activeZone) + "에 붙여넣었습니다.";
   if (activeZone === "product3") setSStatus(msg, "ok");
+  else if (activeZone === "product4") setCompStatus(msg, "ok");
   else if (isDetailZone(activeZone)) setDStatus(msg, "ok"); else setStatus(msg, "ok");
 });
 
@@ -1714,6 +1916,23 @@ const GEMINI_PRICES = [
   { re: /flash/,               inp: 0.50, out: 3.00 },
   { re: /pro/,                 inp: 2.00, out: 12.0 },
 ];
+// OpenAI image models report token usage; USD per 1M tokens (text in / image in / image out).
+// Newer model IDs not listed fall back to the last row — shown as an estimate.
+const OPENAI_PRICES = [
+  { re: /gpt-image-1-mini/, txt: 2.00, inImg: 2.50, out: 8.00 },
+  { re: /gpt-image-1(?!\.)/, txt: 5.00, inImg: 10.0, out: 40.0 },
+  { re: /gpt-5.*mini/, txt: 0.25, out: 2.00 },
+  { re: /gpt-5/, txt: 1.25, out: 10.0 },
+  { re: /./, txt: 5.00, inImg: 8.00, out: 32.0 },
+];
+function openaiCost(model, u) {
+  if (!u) return 0;
+  const p = OPENAI_PRICES.find((x) => x.re.test(model));
+  if (u.prompt_tokens != null) return ((u.prompt_tokens || 0) * p.txt + (u.completion_tokens || 0) * p.out) / 1e6;
+  const d = u.input_tokens_details || {};
+  const txt = d.text_tokens != null ? d.text_tokens : (u.input_tokens || 0);
+  return (txt * p.txt + (d.image_tokens || 0) * (p.inImg || p.txt) + (u.output_tokens || 0) * p.out) / 1e6;
+}
 const KRW_PER_USD = 1400;   // rough, for display only
 const COST_KEY = nsKey("api_cost_v1");   // {since, models: {"<backend>|<model>": {calls, images, usd, est}}, days: {"YYYY-MM-DD": {calls, images, usd, est}}}
 let costTotal = {};
@@ -1751,6 +1970,10 @@ function trackCost(backend, model, json) {
   if (backend === "openrouter") {
     usd = Number(json?.usage?.cost) || 0;
     (json?.choices || []).forEach((c) => { nImages += (c.message?.images || []).length; });
+  } else if (backend === "openai") {
+    usd = openaiCost(model, json?.usage);
+    est = true;
+    nImages = (json?.data || []).length;
   } else {
     usd = geminiCost(model, json?.usageMetadata);
     est = true;
@@ -1791,10 +2014,10 @@ function renderCost(bump) {
   if (!models.length) tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-soft)">아직 호출 기록이 없습니다</td></tr>';
   models.forEach(([k, m]) => {
     const [be, model] = k.split("|");
-    row(tb, [model + (be === "openrouter" ? " (OR)" : ""), m.calls, m.images || "–", (m.est ? "~" : "") + fmtUsd(m.usd)]);
+    row(tb, [model + (be === "openrouter" ? " (OR)" : be === "openai" ? " (OA)" : ""), m.calls, m.images || "–", (m.est ? "~" : "") + fmtUsd(m.usd)]);
   });
   $("costNote").textContent =
-    (anyEst ? "~ 표시: Gemini는 토큰 수 × 공시 단가로 계산한 추정치입니다(무료 할당량 미반영). 정확한 청구액은 Google Cloud 결제 화면에서 확인하세요. " : "") +
+    (anyEst ? "~ 표시: Gemini·OpenAI는 토큰 수 × 공시 단가로 계산한 추정치입니다(무료 할당량 미반영). 정확한 청구액은 각 서비스의 결제 화면에서 확인하세요. " : "") +
     "OpenRouter는 응답에 포함된 실제 청구액입니다. 원화는 $1 = ₩" + KRW_PER_USD.toLocaleString() + " 기준 · 누적 시작 " +
     new Date(costTotal.since).toLocaleDateString("ko-KR");
   if (bump) {
@@ -2223,24 +2446,29 @@ const OR_MSG = {
   429: "속도 제한에 걸렸습니다. 잠시 후 다시 시도하세요",
 };
 // imageUrls: data URLs (or https) of the reference images.
-async function callOpenRouter(promptText, apiKey, model, ratio, imageUrls, tag) {
+// size: "1K" | "2K" | "4K" (선택). 비율·해상도는 image_config로 실제 파라미터로 보낸다 —
+// 프롬프트 글로만 적으면 모델이 무시할 수 있다. 모델이 거부하면(400) 빼고 다시 보낸다.
+async function callOpenRouter(promptText, apiKey, model, ratio, imageUrls, tag, size) {
   logPrompt("이미지", tag, model, promptText + "\nAspect ratio: " + ratio, (imageUrls || []).length);
   const content = [{ type: "text", text: promptText + "\nAspect ratio: " + ratio }];
   (imageUrls || []).forEach((u) => content.push({ type: "image_url", image_url: { url: u } }));
+  const base = { model, messages: [{ role: "user", content }], modalities: ["image", "text"], usage: { include: true } };
+  const cfgs = [];
+  if (ratio && size) cfgs.push({ aspect_ratio: ratio, image_size: size });
+  if (ratio) cfgs.push({ aspect_ratio: ratio });
+  cfgs.push(null);
   let resp;
-  try {
-    resp = await fetch(OR_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content }],
-        modalities: ["image", "text"],
-        usage: { include: true },
-      }),
-    });
-  } catch (e) {
-    throw new Error(OR_NET_ERR);
+  for (const cfg of cfgs) {
+    try {
+      resp = await fetch(OR_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
+        body: JSON.stringify(cfg ? Object.assign({ image_config: cfg }, base) : base),
+      });
+    } catch (e) {
+      throw new Error(OR_NET_ERR);
+    }
+    if (resp.ok || resp.status !== 400) break;
   }
   if (!resp.ok) throw await httpError(resp, OR_MSG);
   const j = await resp.json();
@@ -2265,6 +2493,655 @@ function extractORImages(resp) {
     throw new Error("생성 실패: " + reason);
   }
   return out;
+}
+
+// ---- OpenAI backend (Images API: /images/edits with reference photos, /images/generations without) ----
+const OA_NET_ERR =
+  "OpenAI API에 연결하지 못했습니다 (Failed to fetch). " +
+  "file:// 로 열었다면 serve.command 로 실행하고, 광고차단 확장을 이 페이지에서 꺼보세요. " +
+  "회사망이 api.openai.com 을 차단할 수도 있습니다.";
+const OA_MSG = {
+  401: "OpenAI API 키가 올바르지 않습니다",
+  403: "이 모델을 쓸 권한이 없습니다 (OpenAI 조직 인증·모델 접근 권한 확인)",
+  404: "모델을 찾을 수 없습니다 (모델 설정의 모델명 확인: 예 gpt-image-2)",
+  429: "사용량 한도·크레딧 부족 또는 속도 제한입니다 (platform.openai.com 결제 확인)",
+};
+// Size in pixels for the ratio. Newer GPT Image models take any size in multiples of 16;
+// older ones only the three fixed sizes, so those are the fallback.
+function oaSizes(ratio, size) {
+  const [a, b] = String(ratio || "1:1").split(":").map(Number);
+  const r = (a && b) ? a / b : 1;
+  const long = size === "2K" || size === "4K" ? 2048 : 1536;
+  const r16 = (v) => Math.max(256, Math.round(v / 16) * 16);
+  const exact = r >= 1 ? r16(long) + "x" + r16(long / r) : r16(long * r) + "x" + r16(long);
+  const std = r > 1.15 ? "1536x1024" : r < 0.87 ? "1024x1536" : "1024x1024";
+  return [...new Set([exact, std, "auto"])];
+}
+async function refToBlob(f) {
+  if (f.b64) {
+    const bin = atob(f.b64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return new Blob([u8], { type: f.mime || "image/png" });
+  }
+  return (await fetch(f.url || f.src)).blob();
+}
+// refs: [{mime, b64, url}]. Returns the raw JSON response.
+// mask (선택): 첫 참조 이미지와 같은 크기의 PNG Blob. 투명한 곳만 고치고 불투명한 곳은 보존한다.
+async function callOpenAIImage(promptText, apiKey, model, ratio, refs, tag, size, mask) {
+  logPrompt("이미지", tag, model, promptText + "\n[aspect ratio: " + ratio + (size ? ", size: " + size : "") + "]", (refs || []).length);
+  const blobs = await Promise.all((refs || []).map(refToBlob));
+  const sizes = oaSizes(ratio, size);
+  let sizeIdx = 0;
+  let quality = $("oaQuality").value || "high";
+  // Keeps the product's shape, logos and texture from the reference photos (edits only).
+  let fidelity = blobs.length > 0;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    let resp;
+    try {
+      if (blobs.length) {
+        const fd = new FormData();
+        fd.append("model", model);
+        fd.append("prompt", promptText);
+        blobs.forEach((b, i) => fd.append("image[]", b, "ref" + (i + 1) + "." + ((b.type.split("/")[1] || "png").replace("jpeg", "jpg"))));
+        fd.append("size", sizes[sizeIdx]);
+        if (quality) fd.append("quality", quality);
+        if (fidelity) fd.append("input_fidelity", "high");
+        if (mask) fd.append("mask", mask, "mask.png");
+        resp = await fetch(OA_BASE + "/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + apiKey }, body: fd });
+      } else {
+        const body = { model, prompt: promptText, size: sizes[sizeIdx] };
+        if (quality) body.quality = quality;
+        resp = await fetch(OA_BASE + "/images/generations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
+          body: JSON.stringify(body),
+        });
+      }
+    } catch (e) {
+      throw new Error(OA_NET_ERR);
+    }
+    if (resp.ok) { const j = await resp.json(); trackCost("openai", model, j); return j; }
+    if (resp.status !== 400) throw await httpError(resp, OA_MSG);
+    // 400: drop whichever optional parameter this model rejected, then retry.
+    let msg = "";
+    try { const e = (await resp.json()).error || {}; msg = (e.param || "") + " " + (e.message || ""); } catch (e) {}
+    if (fidelity && /input_fidelity/i.test(msg)) { fidelity = false; continue; }
+    if (quality && /quality/i.test(msg)) { quality = ""; continue; }
+    if (sizeIdx < sizes.length - 1 && /size|dimension|resolution|multiple/i.test(msg)) { sizeIdx++; continue; }
+    throw new Error(HTTP_MSG[400] + (msg.trim() ? " — " + msg.trim() : ""));
+  }
+  throw new Error("OpenAI 요청을 맞추지 못했습니다 (파라미터 거부가 반복됨).");
+}
+function extractOAImages(resp) {
+  const fmt = resp.output_format || "png";
+  const out = (resp.data || []).map((d) => d.b64_json
+    ? { mime: "image/" + (fmt === "jpg" ? "jpeg" : fmt), b64: d.b64_json }
+    : d.url ? { src: d.url, mime: "image/png" } : null).filter(Boolean);
+  if (!out.length) throw new Error("생성 실패: " + (resp.error?.message || "이미지가 반환되지 않았습니다"));
+  return out;
+}
+
+// One entry point for every image request, whatever the backend.
+// refs: [{mime, b64, url}] — product shots first. Returns [{mime, b64} | {src, mime}].
+// opts.mask: OpenAI 전용 편집 마스크(다른 백엔드는 무시하고 프롬프트로만 보존을 지시).
+async function generateImages(promptText, refs, ratio, tag, size, opts) {
+  const apiKey = $("apikey").value.trim();
+  if (!apiKey) throw new Error("API 키를 입력하세요.");
+  const backend = $("backend").value;
+  const model = $("model").value.trim() || currentBackend().defaultModel;
+  refs = refs || [];
+  if (backend === "openrouter") return extractORImages(await callOpenRouter(promptText, apiKey, model, ratio, refs.map((f) => f.url), tag, size));
+  if (backend === "openai") return extractOAImages(await callOpenAIImage(promptText, apiKey, model, ratio, refs, tag, size, opts && opts.mask));
+  return extractImages(await callGemini(promptText, apiKey, model, ratio, refs.filter((f) => f.b64), tag, size));
+}
+
+// =====================================================================
+// 상품 충실도 보강 (조사 결과 반영)
+//  1) 상품 디테일 체크리스트: 사진에서 스트랩 개수·패턴·로고 같은 식별 포인트를
+//     글로 뽑아 프롬프트에 함께 넣는다 (이미지 + 텍스트 이중 지시).
+//  2) 생성 후 일치 검사: 비전 모델이 원본 사진과 결과를 비교해 점수·불일치 항목을 낸다.
+//  3) 자동 수정: 불일치면 처음부터 다시 그리지 않고, 결과 이미지를 원본에 맞게 고치는
+//     편집 요청을 보낸다 (구도·배경은 유지). 끝까지 기준 미달이면 가장 점수 높은 컷을 쓴다.
+// =====================================================================
+const QA_PASS = 80;
+const specCache = new Map();   // 상품샷 묶음 -> Promise<[디테일...]>
+const specDone = new Map();    // 상품샷 묶음 -> [디테일...] (추출이 끝난 것만 — 프롬프트 미리보기용)
+const SPEC_MARK = "exact product details to reproduce";
+const specKey = (prod) => productSignature(prod.filter((f) => f.b64).slice(0, 4));
+// 상품샷 배열, 또는 옵션 묶음 [{name, refs}]을 묶음 배열로 맞춘다.
+// 함수 선언으로 둔다: 페이지 초기화 중 프롬프트 미리보기가 이 코드보다 먼저 부른다.
+function asGroups(x) { return !x || !x.length ? [] : x[0] && x[0].refs ? x : [{ name: "", refs: x }]; }
+// 이미 뽑아 둔 디테일 줄 (없으면 ""). 자동 프롬프트에 넣어 검토 창·미리보기에서도 보이게 한다.
+function cachedSpecLine(prodOrGroups) {
+  const gs = asGroups(prodOrGroups);
+  if (!$("specCheck").checked || !gs.length) return "";
+  // 초기화 중(아래 상수가 아직 준비 전)에 불려도 미리보기가 깨지지 않게.
+  try {
+    const dets = gs.map((g) => specDone.get(specKey(g.refs)) || []);
+    return dets.some((d) => d.length) ? specLineG(gs, dets) : "";
+  } catch (e) { return ""; }
+}
+const imgUrlOf = (img) => img.src || ("data:" + img.mime + ";base64," + img.b64);
+const qaTextModel = () => $("textModel").value.trim() || currentBackend().defaultTextModel;
+// 모델별로 참조 이미지를 이 장수 이하로 넣을 때 가장 정확하다 (Google 문서 기준, 나머지는 넉넉히).
+function refCap(model) {
+  if (/gemini-2\.5-flash-image/.test(model)) return 3;
+  if (/gemini-3-pro-image/.test(model)) return 5;
+  if (/gemini-3\.1-flash-lite-image/.test(model)) return 14;
+  if (/gemini-3\.1-flash-image/.test(model)) return 10;
+  return 16;
+}
+function specPrompt(n) {
+  return [
+    "Image" + (n > 1 ? "s 1-" + n + " are photos" : " 1 is a photo") + " of one real product for sale.",
+    "List the concrete visual details that a copy of this product must get right to look identical to it. Cover, where visible: " +
+      "overall shape and proportions; the count and placement of distinct parts (e.g. straps, tabs, buttons, holes, panels); " +
+      "the exact colour of each part (colour name + approximate hex); material, surface texture, and any repeating pattern (its shape, size, and spacing); " +
+      "logos, printed text, and labels (exact spelling and position); hardware, stitching, and edges.",
+    "Describe only what is clearly visible; never guess hidden sides.",
+    'Reply with JSON only: {"details": ["<short English item>", ...]} — at most 10 items, each under 20 words.',
+  ].join("\n");
+}
+async function productSpec(prod) {
+  const refs = prod.slice(0, 4);
+  const sig = productSignature(refs);
+  if (!specCache.has(sig)) {
+    const p = (async () => {
+      const raw = await callTextModel(specPrompt(refs.length), $("apikey").value.trim(), $("backend").value, qaTextModel(), refs, "상품 디테일 추출");
+      const j = parseJsonLoose(raw) || {};
+      const d = (Array.isArray(j.details) ? j.details : []).map((x) => String(x).trim()).filter(Boolean).slice(0, 12);
+      specDone.set(sig, d);
+      return d;
+    })();
+    specCache.set(sig, p);
+    p.catch(() => specCache.delete(sig));
+  }
+  return specCache.get(sig);
+}
+const specLine = (d) => SPEC_MARK + ", checked against the product photos — get every one of them right: " +
+  d.map((x, i) => (i + 1) + ") " + x).join("; ");
+// 옵션이 여럿이면 옵션별로 나눠 적는다.
+function specLineG(gs, dets) {
+  if (gs.length === 1 && !gs[0].name) return specLine(dets[0] || []);
+  return SPEC_MARK + " for each option, checked against its own photos — get every one of them right: " +
+    gs.map((g, i) => "'" + g.name + "' option: " + ((dets[i] || []).map((x, j) => (j + 1) + ") " + x).join("; ") || "(see its photo)")).join(" | ");
+}
+// 검사·수정에 보낼 상품샷: 옵션마다 골고루, 합쳐 최대 4장. 매핑 문구도 함께.
+function qaRefsFor(gs) {
+  const per = Math.max(1, Math.floor(4 / gs.length));
+  const refs = [], map = [];
+  gs.forEach((g) => {
+    const take = g.refs.filter((f) => f.b64).slice(0, per);
+    if (!take.length) return;
+    const from = refs.length + 1;
+    refs.push(...take);
+    map.push(imgRange(from, refs.length) + (g.name ? " = the '" + g.name + "' option" : ""));
+  });
+  return { refs: refs.slice(0, Math.max(4, gs.length)), map };
+}
+function qaPrompt(gs, q, dets) {
+  const multi = gs.length > 1 || !!gs[0].name;
+  return [
+    "You are a strict e-commerce QA inspector.",
+    multi
+      ? "Reference photos of the real product options: " + q.map.join("; ") + ". The LAST image is a generated marketing image that must show " +
+        (gs.length > 1 ? "exactly these options, each looking like its own reference photos." : "exactly this option.")
+      : imgRange(1, q.refs.length) + (q.refs.length > 1 ? " are reference photos" : " is a reference photo") + " of the real product. " +
+        "The LAST image is a generated marketing image that must show this exact same product.",
+    "Compare only the product" + (gs.length > 1 ? "s" : "") + " itself. Ignore background, props, people, lighting mood, camera angle, crop, " +
+      "and any side of the product that is not visible in the generated image.",
+    "Check shape and proportions, the count and placement of parts, colours, material/texture/pattern, logos and text, hardware and stitching." +
+      (gs.length > 1 ? " Also check that every listed option appears, that no unlisted option appears, and that colours or details are not swapped or mixed between options." : ""),
+    dets.some((d) => d.length) ? "Key details: " + gs.map((g, i) => (g.name ? "'" + g.name + "': " : "") + (dets[i] || []).join("; ")).join(" | ") : "",
+    'Reply with JSON only: {"product_visible": true or false, "score": <0-100, where 100 = indistinguishable from the real product>, ' +
+      '"issues": ["<each concrete mismatch in English, e.g. the strap has two velcro tabs but the real one has one>"], ' +
+      '"issues_ko": ["<the same issues as short Korean phrases>"]}',
+    "Give 85 or more only if a customer would accept it as the same product; list every mismatch you see, and none if there are none.",
+  ].filter(Boolean).join("\n");
+}
+async function qaCheck(gs, url, dets) {
+  const q = qaRefsFor(gs);
+  const gen = Object.assign({ name: "generated", url }, dataUrlToPart(url));
+  const raw = await callTextModel(qaPrompt(gs, q, dets), $("apikey").value.trim(), $("backend").value, qaTextModel(),
+    q.refs.concat([gen]), "상품 일치 검사");
+  const j = parseJsonLoose(raw);
+  if (!j) return null;
+  const list = (x) => (Array.isArray(x) ? x : []).map((v) => String(v).trim()).filter(Boolean);
+  return { visible: j.product_visible !== false, score: Math.max(0, Math.min(100, Math.round(Number(j.score) || 0))),
+    issues: list(j.issues), issuesKo: list(j.issues_ko) };
+}
+// 수정 요청은 image 1 = 고칠 이미지, 그 뒤로 상품샷. 매핑 번호를 1칸씩 민다.
+function fixPrompt(gs, q, issues, dets) {
+  const shifted = q.map.map((m) => m.replace(/image (\d+)(?:-(\d+))?/, (_, a, b) => "image " + (+a + 1) + (b ? "-" + (+b + 1) : "")));
+  const multi = gs.length > 1 || !!gs[0].name;
+  return [
+    "Edit image 1. Image 1 is a generated product photo; " +
+      (multi ? "the real product options are: " + shifted.join("; ") + "." : shifted[0].replace(/^image/, "image") + " show" + (q.refs.length > 1 ? "" : "s") + " the real product."),
+    "The product" + (gs.length > 1 ? "s" : "") + " in image 1 do" + (gs.length > 1 ? "" : "es") + " not match the real product: " + issues.join("; ") + ".",
+    "Correct the product" + (gs.length > 1 ? "s" : "") + " in image 1 so " + (gs.length > 1 ? "each matches its own option photos" : "it matches the real product") +
+      " exactly — shape, the count and placement of parts, colours, material, texture, pattern, logos, and text.",
+    dets.some((d) => d.length) ? specLineG(gs, dets) : "",
+    "Keep everything else in image 1 identical: composition, camera angle, product position and size, background, lighting, props, and people. " +
+      "Change only the product's wrong details. Do not add any text.",
+  ].filter(Boolean).join("\n");
+}
+// refs의 앞 nProduct장이 상품샷. 결과 {url, prompt, qa?, failed?}.
+// opts: {nProduct, groups?: [{name, refs}] (한 장에 여러 옵션일 때), say(msg)}.
+async function genChecked(promptText, refs, ratio, tag, size, opts) {
+  opts = opts || {};
+  const say = opts.say || (() => {});
+  const nP = opts.nProduct || 0;
+  const gs = (opts.groups && opts.groups.length ? opts.groups : [{ name: "", refs: refs.slice(0, nP) }])
+    .map((g) => ({ name: g.name, refs: g.refs.filter((f) => f.b64) })).filter((g) => g.refs.length);
+  const wantSpec = $("specCheck").checked, wantQa = $("qaCheck").checked;
+  const retry = parseInt($("qaRetry").value, 10) || 0;
+  const model = $("model").value.trim() || currentBackend().defaultModel;
+  let dets = gs.map(() => []);
+  if (nP && gs.length && (wantSpec || wantQa)) {
+    say("상품 디테일 확인 중…");
+    dets = await Promise.all(gs.map((g) => productSpec(g.refs).catch(() => [])));
+  }
+  // 검토 창에서 이미 들어간 프롬프트(또는 직접 고친 프롬프트)에는 다시 붙이지 않는다.
+  const prompt = wantSpec && dets.some((d) => d.length) && !promptText.includes(SPEC_MARK) ? promptText + "\n" + specLineG(gs, dets) : promptText;
+  say(tag + " 생성 중…" + (refs.length > refCap(model) ? " (참조 " + refs.length + "장 — 이 모델은 " + refCap(model) + "장 이하에서 가장 정확해요)" : ""));
+  let url = imgUrlOf((await generateImages(prompt, refs, ratio, tag, size))[0]);
+  // https 결과는 캔버스로 읽을 수 없어(교차 출처) 검사하지 않는다.
+  if (!nP || !gs.length || !wantQa || !/^data:/.test(url)) return { url, prompt };
+  let best = null;
+  for (let attempt = 0; ; attempt++) {
+    say("상품 일치 검사 중…" + (attempt ? " (자동 수정 " + attempt + "회 후)" : ""));
+    let qa = null;
+    try { qa = await qaCheck(gs, url, dets); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
+    if (!qa) return { url, prompt };
+    if (!best || qa.score > best.qa.score) best = { url, qa };
+    if (!qa.visible || qa.score >= QA_PASS || !qa.issues.length) return { url, prompt, qa, fixed: attempt };
+    if (attempt >= retry || (opts.shouldStop && opts.shouldStop())) break;
+    say("불일치(" + qa.score + "점) — 자동 수정 중: " + (qa.issuesKo.length ? qa.issuesKo : qa.issues).join(", "));
+    const q = qaRefsFor(gs.map((g) => ({ name: g.name, refs: g.refs.slice(0, Math.max(1, Math.min(3, refCap(model) - 1))) })));
+    const fixRefs = [Object.assign({ url }, dataUrlToPart(url))].concat(q.refs);
+    url = imgUrlOf((await generateImages(fixPrompt(gs, q, qa.issues, dets), fixRefs, ratio, tag + " · 자동 수정", size))[0]);
+    if (!/^data:/.test(url)) return { url, prompt };
+  }
+  return { url: best.url, prompt, qa: best.qa, failed: true };
+}
+// 검토 창에 보여줄 '생성 후 검사(C)' 설명. prod: 이 이미지의 상품샷.
+function qaPlanText(prod) {
+  if (!prod || !prod.length) return "생성 후 일치 검사: 상품샷이 없어 건너뜀";
+  if (!$("qaCheck").checked) return "생성 후 일치 검사: 꺼짐 (공통 설정에서 켤 수 있어요)";
+  const retry = parseInt($("qaRetry").value, 10) || 0;
+  return "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 " +
+    (retry ? "지적된 부분만 원본처럼 고치는 수정 요청을 최대 " + retry + "회 보냅니다 (구도·배경 유지). 끝까지 미달이면 가장 높은 점수 컷을 쓰고 경고합니다."
+      : "경고만 합니다 (자동 수정 꺼짐).");
+}
+function qaPromptsPreview(prodOrGroups) {
+  const gs = asGroups(prodOrGroups).map((g) => ({ name: g.name, refs: g.refs.filter((f) => f.b64) })).filter((g) => g.refs.length);
+  if (!gs.length) return "";
+  const dets = gs.map((g) => specDone.get(specKey(g.refs)) || []);
+  const q = qaRefsFor(gs);
+  return "[일치 검사 프롬프트 — 텍스트 모델에 상품샷 " + q.refs.length + "장 + 생성 이미지와 함께 보냄]\n" + qaPrompt(gs, q, dets) +
+    "\n\n[자동 수정 프롬프트 — 불일치일 때 생성 이미지 + 상품샷과 함께 보냄. <issues>는 검사 결과로 채워짐]\n" +
+    fixPrompt(gs, q, ["<issues>"], dets);
+}
+// 검사 결과를 사람이 읽을 한 줄로.
+function qaNote(r) {
+  if (!r || !r.qa) return r && r.qaError ? "일치 검사 실패: " + r.qaError : "";
+  const q = r.qa;
+  if (!q.visible) return "일치 검사: 상품이 잘 안 보이는 컷이라 건너뜀";
+  const iss = (q.issuesKo.length ? q.issuesKo : q.issues).join(", ");
+  if (r.failed) return "⚠ 상품 불일치 남음 (" + q.score + "점): " + iss + " — 다시 생성하거나 수정 요청을 해보세요";
+  return "상품 일치 " + q.score + "점" + (r.fixed ? " (자동 수정 " + r.fixed + "회)" : "");
+}
+
+// =====================================================================
+// 실사 합성: AI는 상품이 없는 빈 배경만 그리고, 상품은 원본 사진에서 배경을
+// 지운 픽셀을 그대로 얹는다. 생성형 모델이 상품을 다시 그리지 않으니 형태·로고·
+// 질감이 왜곡될 여지가 없다. (착용샷처럼 사람과 맞닿는 컷은 이 방식이 안 된다.)
+// =====================================================================
+// 배경 제거: @imgly/background-removal (브라우저에서 실행, 첫 사용 때 모델을 내려받음).
+const BGR_URL = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm";
+let bgrLib = null;
+const cutCache = new Map();   // 사진 -> 배경 지우고 여백 자른 canvas
+function loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    im.src = src;
+  });
+}
+const refSrc = (f) => f.url || ("data:" + f.mime + ";base64," + f.b64);
+function toCanvas(im, maxSide) {
+  const sc = Math.min(1, (maxSide || 1e9) / Math.max(im.naturalWidth || im.width, im.naturalHeight || im.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round((im.naturalWidth || im.width) * sc);
+  c.height = Math.round((im.naturalHeight || im.height) * sc);
+  c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+  return c;
+}
+// 이미 누끼(투명 배경) PNG면 그대로 쓴다.
+function transparentShare(c) {
+  const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+  let t = 0, n = 0;
+  for (let i = 3; i < d.length; i += 4 * 16) { n++; if (d[i] < 200) t++; }
+  return t / n;
+}
+function trimAlpha(c) {
+  const { width: w, height: h } = c;
+  const d = c.getContext("2d").getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (d[(y * w + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) throw new Error("사진에서 상품을 찾지 못했습니다. 상품이 잘 보이는 사진이나 누끼 PNG를 넣어주세요.");
+  const o = document.createElement("canvas");
+  o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext("2d").drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  return o;
+}
+async function productCutout(ref, onStatus) {
+  const k = refSrc(ref);
+  if (cutCache.has(k)) return cutCache.get(k);
+  const p = (async () => {
+    let c = toCanvas(await loadImg(k), 2048);
+    if (transparentShare(c) < 0.02) {
+      onStatus && onStatus("상품 배경 지우는 중… (처음 한 번은 배경 제거 모델을 내려받아 30초~1분 걸려요)");
+      try { bgrLib = bgrLib || await import(BGR_URL); } catch (e) {
+        throw new Error("배경 제거 도구를 불러오지 못했습니다. 인터넷 연결을 확인하거나, 배경을 지운 누끼 PNG를 상품샷으로 넣어주세요.");
+      }
+      const blob = await bgrLib.removeBackground(await (await fetch(c.toDataURL("image/png"))).blob(), { output: { format: "image/png" } });
+      const u = URL.createObjectURL(blob);
+      try { c = toCanvas(await loadImg(u)); } finally { URL.revokeObjectURL(u); }
+    }
+    return trimAlpha(c);
+  })();
+  cutCache.set(k, p);
+  p.catch(() => cutCache.delete(k));
+  return p;
+}
+
+// 빈 배경(플레이트) 프롬프트. 상품은 나중에 실제 사진으로 얹는다고 못 박는다.
+const PLATE_KEYS = ["setting", "background", "environment", "scene", "lighting", "mood", "atmosphere"];
+function plateScene(scn, vkey) {
+  if (!scn) return "";
+  const t = mergedTemplate(scn, vkey || "", null);
+  return PLATE_KEYS.filter((k) => typeof t[k] === "string" && t[k] && !/\{[a-z_]+\}/i.test(t[k]))
+    .map((k) => k + ": " + t[k]).join("; ");
+}
+function platePrompt({ scene, style, subject, extra, nTone }) {
+  return [
+    "Create a photorealistic, EMPTY background plate for an e-commerce product composite.",
+    scene ? "scene: " + scene : "",
+    style ? "visual style: " + style : "",
+    extra ? "seller's request: " + extra : "",
+    "The product (" + (subject || "the product") + ") will be added later in post-production from a real photo, " +
+      "so the scene must NOT contain the product, anything similar to it, or any placeholder object where it would go.",
+    "Leave a clear, flat, uncluttered surface around the centre and lower-middle of the frame where the product will stand, " +
+      "with room for an object about half the frame width. Props, if any, stay near the edges or in the background and never overlap that area.",
+    "camera: eye level to slightly above (about 20-30 degrees looking down), like a typical product photo; the placement area in sharp focus with a gently soft background.",
+    nTone ? "the attached image(s) come from the same photo shoot: match their colour grading, colour temperature, lighting and background family, but use a different composition — never reproduce them" : "",
+    "soft natural lighting with one clear main light direction; no people, hands, text, letters, logos, or watermarks.",
+  ].filter(Boolean).join("\n");
+}
+function whitePlate(w, h) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+  return c.toDataURL("image/png");
+}
+// 비율 문자열("4:5") -> 흰 배경 크기(px), 긴 변 maxSide.
+function ratioPx(ratio, maxSide) {
+  const [a, b] = String(ratio || "1:1").split(":").map(Number);
+  const r = (a && b) ? a / b : 1;
+  return r >= 1 ? [maxSide, Math.round(maxSide / r)] : [Math.round(maxSide * r), maxSide];
+}
+
+// st: {src, cx, by, w, shadow, bright} — cx/by는 상품 가로 중심·바닥선(0~1), w는 상품 폭/배경 폭.
+function compDefault(plate, cut, src) {
+  const W = plate.naturalWidth, H = plate.naturalHeight;
+  const w = Math.min(0.5, 0.6 * H * cut.width / (W * cut.height));
+  return { src: src || 0, cx: 0.5, by: 0.84, w, shadow: 0.45, bright: 1 };
+}
+function compBox(W, H, cut, st) {
+  const pw = st.w * W, ph = pw * cut.height / cut.width;
+  return { x: st.cx * W - pw / 2, y: st.by * H - ph, pw, ph };
+}
+// 누끼 경계를 1px 남짓 안쪽으로 부드럽게: alpha × blur(alpha). 칼로 오린 듯한 테두리를 없앤다.
+const featherCache = new WeakMap();
+function feathered(cut) {
+  if (featherCache.has(cut)) return featherCache.get(cut);
+  const r = Math.max(0.8, Math.max(cut.width, cut.height) / 900);
+  const soft = document.createElement("canvas");
+  soft.width = cut.width; soft.height = cut.height;
+  const sx = soft.getContext("2d");
+  sx.filter = "blur(" + r + "px)"; sx.drawImage(cut, 0, 0);
+  const o = document.createElement("canvas");
+  o.width = cut.width; o.height = cut.height;
+  const ox = o.getContext("2d");
+  ox.drawImage(cut, 0, 0);
+  ox.globalCompositeOperation = "destination-in";
+  ox.drawImage(soft, 0, 0);
+  featherCache.set(cut, o);
+  return o;
+}
+function drawProduct(ctx, cut, st, W, H) {
+  const b = compBox(W, H, cut, st);
+  ctx.save();
+  if (st.bright && st.bright !== 1) ctx.filter = "brightness(" + st.bright + ")";
+  ctx.drawImage(feathered(cut), b.x, b.y, b.pw, b.ph);
+  ctx.restore();
+}
+function drawShadow(ctx, cut, st, W, H) {
+  if (!(st.shadow > 0)) return;
+  const b = compBox(W, H, cut, st);
+  // 바닥 접지 그림자
+  ctx.save();
+  ctx.translate(b.x + b.pw / 2, b.y + b.ph);
+  ctx.scale(b.pw * 0.5, Math.max(3, b.ph * 0.07));
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  g.addColorStop(0, "rgba(0,0,0," + (0.55 * st.shadow) + ")");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // 실루엣 그림자: 상품은 화면 밖에 그리고 그림자만 제자리에 떨어뜨린다.
+  ctx.save();
+  const off = W * 4;
+  ctx.shadowColor = "rgba(0,0,0," + (0.3 * st.shadow) + ")";
+  ctx.shadowBlur = Math.max(4, b.pw * 0.05);
+  ctx.shadowOffsetX = off; ctx.shadowOffsetY = b.ph * 0.025;
+  ctx.drawImage(cut, b.x - off, b.y, b.pw, b.ph);
+  ctx.restore();
+}
+function compRender(plate, cut, st, base) {
+  const W = plate.naturalWidth, H = plate.naturalHeight;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(base || plate, 0, 0, W, H);
+  if (!base) drawShadow(ctx, cut, st, W, H);
+  drawProduct(ctx, cut, st, W, H);
+  return c;
+}
+// AI로 자연스럽게: 상품을 먼저 놓고, AI가 그 상품에 맞춰 주변(원근·빛 방향·그림자·반사)을
+// 다시 그린다. 배경이 상품에 맞춰지므로 붙인 티가 안 난다. 그 뒤 AI 결과 속 상품 위치를
+// 찾아(정렬) 원본 픽셀을 그 자리에 다시 덮는다 — 최종본의 상품은 항상 원본 사진 그대로다.
+const HARMONIZE_PROMPT = [
+  "The product in this image is a real photograph and must stay exactly as it is — same position, size, shape, colours, texture, logos, and lighting on it.",
+  "Re-render everything around the product so it looks like it was photographed in this scene in a single shot: " +
+    "match the scene's perspective and camera height to the product, set the scene's main light direction and colour temperature to match the light and highlights already on the product, " +
+    "and add the contact shadow, cast shadow, and ambient occlusion the product would throw on the surface, plus a soft reflection if the surface is glossy.",
+  "Keep the same scene idea, surface, and colour palette; you may refine the surface, background, and props so they sit correctly around the product, but never let anything overlap or cover the product.",
+  "Do NOT move, resize, rotate, redraw, recolour, or retouch the product. no text, letters, or watermarks.",
+].join("\n");
+// 상품 실루엣 = 보존(불투명), 나머지 = 고칠 곳(투명). 경계는 몇 px 넓혀 그림자가 상품 밑까지 들어가게 둔다.
+function compMask(W, H, cut, st) {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  const b = compBox(W, H, cut, st);
+  const inset = Math.max(2, b.pw * 0.01);
+  x.drawImage(cut, b.x + inset, b.y + inset, b.pw - inset * 2, b.ph - inset * 2);
+  x.globalCompositeOperation = "source-in";
+  x.fillStyle = "#000"; x.fillRect(0, 0, W, H);
+  return new Promise((res) => c.toBlob(res, "image/png"));
+}
+// AI 결과에서 상품이 놓인 자리를 찾는다: 위치 ±4%, 크기 ±4% 범위를 작은 해상도에서 훑어
+// 상품 실루엣 안의 밝기 차이가 가장 작은 곳. err는 0~255 평균 차이(클수록 AI가 상품을 바꿨거나 옮김).
+function alignProduct(aiImg, cut, st, W, H) {
+  const D = 200, k = D / Math.max(W, H);
+  const w = Math.round(W * k), h = Math.round(H * k);
+  const ac = document.createElement("canvas"); ac.width = w; ac.height = h;
+  const ax = ac.getContext("2d", { willReadFrequently: true });
+  ax.drawImage(aiImg, 0, 0, w, h);
+  const A = ax.getImageData(0, 0, w, h).data;
+  const gray = (d, i) => d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+  let best = { err: Infinity, dx: 0, dy: 0, s: 1 };
+  for (const sc of [0.96, 0.98, 1, 1.02, 1.04]) {
+    const t = Object.assign({}, st, { w: st.w * sc });
+    const b = compBox(w, h, cut, t);
+    const pw = Math.max(1, Math.round(b.pw)), ph = Math.max(1, Math.round(b.ph));
+    const pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
+    const px = pc.getContext("2d", { willReadFrequently: true });
+    px.drawImage(cut, 0, 0, pw, ph);
+    const P = px.getImageData(0, 0, pw, ph).data;
+    const pts = [];
+    for (let y = 0; y < ph; y += 1) for (let x = 0; x < pw; x += 1) {
+      const i = (y * pw + x) * 4;
+      if (P[i + 3] > 230) pts.push(x, y, gray(P, i));
+    }
+    if (pts.length < 30) continue;
+    const bx = Math.round(b.x), by = Math.round(b.y);
+    const R = Math.max(2, Math.round(D * 0.04));
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      let sum = 0, n = 0;
+      for (let j = 0; j < pts.length; j += 3) {
+        const X = bx + dx + pts[j], Y = by + dy + pts[j + 1];
+        if (X < 0 || Y < 0 || X >= w || Y >= h) continue;
+        sum += Math.abs(gray(A, (Y * w + X) * 4) - pts[j + 2]); n++;
+      }
+      if (n > pts.length / 6 && sum / n < best.err) best = { err: sum / n, dx, dy, s: sc };
+    }
+  }
+  const aligned = Object.assign({}, st, {
+    w: st.w * best.s,
+    // 크기를 바꿔도 바닥선·중심 기준이라 cx/by는 그대로, 이동만 더한다.
+    cx: st.cx + best.dx / w,
+    by: st.by + best.dy / h,
+  });
+  return { st: aligned, err: best.err };
+}
+async function compHarmonize(plate, cut, st, ratio, size) {
+  const W = plate.naturalWidth, H = plate.naturalHeight;
+  // AI가 진짜 그림자를 그리도록, 캔버스 가짜 그림자는 빼고 보낸다.
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const cx = c.getContext("2d");
+  cx.drawImage(plate, 0, 0, W, H);
+  drawProduct(cx, cut, st, W, H);
+  const draft = c.toDataURL("image/png");
+  const mask = $("backend").value === "openai" ? await compMask(W, H, cut, st) : null;
+  const out = (await generateImages(HARMONIZE_PROMPT, [Object.assign({ url: draft }, dataUrlToPart(draft))], ratio,
+    "실사 합성 · 자연스럽게", size, { mask }))[0];
+  const ai = await loadImg(out.src || ("data:" + out.mime + ";base64," + out.b64));
+  const al = alignProduct(ai, cut, st, W, H);
+  return { url: compRender(plate, cut, al.st, ai).toDataURL("image/jpeg", 0.93), st: al.st, err: al.err, aiUrl: ai.src };
+}
+
+// 편집 대화상자. 결과 {url, state} 또는 취소 시 null.
+// opts: {plateUrl, refs, state, ratio, size, onStatus}
+function openCompositor(opts) {
+  return new Promise(async (resolve) => {
+    const dlg = $("compDlg"), cv = $("compCanvas"), info = $("compInfo");
+    const say = (m) => { info.textContent = m || ""; };
+    let plate, cut, st, drag = null, busy = false;
+    const setBusy = (b) => { busy = b; ["compOk", "compHarm", "compSrc"].forEach((id) => { $(id).disabled = b; }); };
+    const draw = () => {
+      if (!plate || !cut) return;
+      const ctx = cv.getContext("2d");
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(plate, 0, 0, cv.width, cv.height);
+      drawShadow(ctx, cut, st, cv.width, cv.height);
+      drawProduct(ctx, cut, st, cv.width, cv.height);
+    };
+    const syncCtrls = () => {
+      $("compScale").value = Math.round(st.w * 100);
+      $("compShadow").value = Math.round(st.shadow * 100);
+      $("compBright").value = Math.round((st.bright || 1) * 100);
+      $("compSrc").value = String(st.src);
+    };
+    const loadCut = async (i) => {
+      setBusy(true);
+      try { cut = await productCutout(opts.refs[i], say); say(""); }
+      finally { setBusy(false); }
+    };
+    const finish = (v) => {
+      cv.onpointerdown = cv.onpointermove = cv.onpointerup = cv.onpointercancel = cv.onwheel = null;
+      dlg.onclose = null;
+      if (dlg.open) dlg.close();
+      resolve(v);
+    };
+    const src = $("compSrc");
+    src.innerHTML = "";
+    opts.refs.forEach((_, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = "상품샷 " + (i + 1); src.appendChild(o); });
+    dlg.onclose = () => finish(null);
+    $("compCancel").onclick = () => finish(null);
+    dlg.showModal();
+    say("불러오는 중…");
+    try {
+      plate = await loadImg(opts.plateUrl);
+      cv.width = plate.naturalWidth; cv.height = plate.naturalHeight;
+      const s0 = opts.state && opts.state.src < opts.refs.length ? opts.state.src : 0;
+      await loadCut(s0);
+      st = opts.state ? Object.assign({}, opts.state, { src: s0 }) : compDefault(plate, cut, s0);
+      syncCtrls(); draw();
+      say("상품을 드래그해 위치를 옮기세요. 바닥 그림자가 배경의 빛 방향과 맞는지 확인하세요.");
+    } catch (e) {
+      say(String(e.message || e)); setBusy(false); $("compOk").disabled = $("compHarm").disabled = true;
+      return;
+    }
+    src.onchange = async () => {
+      const i = Number(src.value);
+      try { await loadCut(i); st.src = i; draw(); } catch (e) { say(String(e.message || e)); }
+    };
+    $("compScale").oninput = () => { st.w = Number($("compScale").value) / 100; draw(); };
+    $("compShadow").oninput = () => { st.shadow = Number($("compShadow").value) / 100; draw(); };
+    $("compBright").oninput = () => { st.bright = Number($("compBright").value) / 100; draw(); };
+    const pt = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }; };
+    cv.onpointerdown = (e) => {
+      if (busy) return;
+      const p = pt(e);
+      drag = { x: p.x, y: p.y, cx: st.cx, by: st.by };
+      cv.setPointerCapture(e.pointerId); cv.classList.add("dragging");
+    };
+    cv.onpointermove = (e) => {
+      if (!drag) return;
+      const p = pt(e);
+      st.cx = Math.min(1, Math.max(0, drag.cx + p.x - drag.x));
+      st.by = Math.min(1.2, Math.max(0.05, drag.by + p.y - drag.y));
+      draw();
+    };
+    cv.onpointerup = cv.onpointercancel = () => { drag = null; cv.classList.remove("dragging"); };
+    cv.onwheel = (e) => {
+      e.preventDefault();
+      st.w = Math.min(1, Math.max(0.05, st.w * (e.deltaY < 0 ? 1.04 : 1 / 1.04)));
+      syncCtrls(); draw();
+    };
+    $("compOk").onclick = () => finish({ url: compRender(plate, cut, st).toDataURL("image/jpeg", 0.93), state: Object.assign({}, st) });
+    $("compHarm").onclick = async () => {
+      setBusy(true);
+      const btn = $("compHarm"), label = btn.textContent;
+      btn.innerHTML = '<span class="spin"></span>AI가 장면 맞추는 중…';
+      try {
+        const r = await compHarmonize(plate, cut, st, opts.ratio, opts.size);
+        // 차이가 크면 AI가 상품을 옮기거나 크게 바꾼 것 — 덮은 원본과 주변 그림자가 어긋날 수 있다.
+        if (r.err > 38 && !confirm("AI 결과에서 상품 자리가 원본과 꽤 다릅니다 (차이 " + Math.round(r.err) + "). " +
+          "원본 상품을 덮으면 그림자와 어긋날 수 있어요.\n\n확인: 그래도 적용 / 취소: 편집 창으로 돌아가 다시 시도")) return;
+        finish({ url: r.url, state: r.st, harmonized: true });
+      } catch (e) {
+        say("AI 처리 실패: " + String(e.message || e) + " — '그대로 적용'으로 캔버스 그림자 버전을 저장할 수 있어요.");
+      } finally { btn.textContent = label; setBusy(false); }
+    };
+  });
 }
 
 let seq = 0;
@@ -2303,7 +3180,20 @@ function addCards(images, label, prompt) {
     a.href = el.src;
     a.download = "ecom_" + label.replace(/[^\w가-힣-]+/g, "_") + "_" + seq + "." + ext;
     zoomable(el, label, a.download);
-    acts.appendChild(pBtn); acts.appendChild(editBtn); acts.appendChild(a);
+    acts.appendChild(pBtn); acts.appendChild(editBtn);
+    if (img.comp) {
+      const cBtn = document.createElement("button");
+      cBtn.type = "button"; cBtn.className = "linklike"; cBtn.textContent = "합성 조정";
+      cBtn.onclick = async () => {
+        const res = await openCompositor(img.comp);
+        if (!res) return;
+        img.comp.state = res.state;
+        el.src = a.href = res.url;
+        a.download = a.download.replace(/\.\w+$/, ".jpg");
+      };
+      acts.appendChild(cBtn);
+    }
+    acts.appendChild(a);
     bar.appendChild(span); bar.appendChild(acts);
     card.appendChild(el); card.appendChild(bar);
     $("gallery").prepend(card);
@@ -2343,13 +3233,8 @@ $("editgo").onclick = async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>수정 중…';
   try {
-    let images;
-    if (backend === "openrouter") {
-      images = extractORImages(await callOpenRouter(prompt, apiKey, model, ratio, [editTarget], "수정"));
-    } else {
-      const part = dataUrlToPart(editTarget);
-      images = extractImages(await callGemini(prompt, apiKey, model, ratio, part ? [part] : [], "수정"));
-    }
+    const part = dataUrlToPart(editTarget);
+    const images = await generateImages(prompt, [Object.assign({ url: editTarget }, part || {})], ratio, "수정");
     const urls = addCards(images, "수정", prompt);
     addHistory({ kind: "수정", title: instruction, sub: backendLabel(backend) + " · " + model, thumb: urls[0] || null },
       { outputs: urls, prompts: urls.map(() => prompt), product: [], style: [] });
@@ -2373,7 +3258,7 @@ const SS_KIND = "스마트스토어 세트";
 const HKEY = nsKey("gen_history_v1");
 let history = [];
 try { history = JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) { history = []; }
-function backendLabel(b) { return b === "openrouter" ? "OpenRouter" : "Gemini"; }
+function backendLabel(b) { return b === "openrouter" ? "OpenRouter" : b === "openai" ? "OpenAI" : "Gemini"; }
 
 const HIST_DB = "gen_history_images" + (AUTH_UID ? ":" + AUTH_UID : "");
 let idbPromise = null;
@@ -2639,6 +3524,7 @@ $("go").onclick = async () => {
     const jobs = [];
     sets.forEach((st) => shots.forEach((sh, i) => jobs.push({ st, sh, i })));
     const notes = [];   // adjustments typed at the first-image check
+    const qaNotes = [];  // 이미지별 상품 일치 검사 결과
     for (let j = 0; j < jobs.length; j++) {
       const { st, sh, i } = jobs[j];
       btn.innerHTML = '<span class="spin"></span>생성 중… (' + (j + 1) + "/" + jobs.length + ")";
@@ -2652,11 +3538,14 @@ $("go").onclick = async () => {
       ].filter(Boolean).join("\n");
       const refs = st.refs.concat(styleRefs);
       const tag = label + (st.name ? " · " + st.name : "") + (shots.length > 1 ? " · " + (i + 1) + "/" + shots.length : "");
-      const images = backend === "openrouter"
-        ? extractORImages(await callOpenRouter(p, apiKey, model, ratio, refs.map((f) => f.url), tag))
-        : extractImages(await callGemini(p, apiKey, model, ratio, refs, tag));
-      const urls = addCards(images, label + (st.name ? " · " + st.name : ""), p);
-      urls.forEach((u) => { allUrls.push(u); allPrompts.push(p); });
+      const r = await genChecked(p, refs, ratio, tag, null, { nProduct: st.refs.length,
+        say: (m) => { btn.innerHTML = '<span class="spin"></span>' + m + " (" + (j + 1) + "/" + jobs.length + ")"; } });
+      const qn = qaNote(r);
+      if (qn) qaNotes.push((jobs.length > 1 ? (j + 1) + "번: " : "") + qn);
+      const m = dataUrlToPart(r.url);
+      const images = [m ? { mime: m.mime, b64: m.b64 } : { src: r.url, mime: "image/png" }];
+      const urls = addCards(images, label + (st.name ? " · " + st.name : "") + (r.qa && r.qa.visible ? (r.failed ? " · ⚠" + r.qa.score : " · ✓" + r.qa.score) : ""), r.prompt);
+      urls.forEach((u) => { allUrls.push(u); allPrompts.push(r.prompt); });
       made += images.length;
       if (j === 0 && jobs.length > 1 && firstCheckOn()) {
         const ans = await askCheckpoint(urls[0], jobs.length - 1);
@@ -2666,7 +3555,8 @@ $("go").onclick = async () => {
       }
     }
     setStatus(made + "장 생성" + (stopped ? " 후 중단" : " 완료") +
-      (viewNote ? " · " + viewNote : ""), "ok");
+      (viewNote ? " · " + viewNote : "") + (qaNotes.length ? " · " + qaNotes.join(" / ") : ""),
+      qaNotes.some((x) => x.startsWith("⚠") || x.includes(": ⚠")) ? "err" : "ok");
   } catch (err) {
     setStatus((made ? made + "장 생성 후 멈춤: " : "") + String(err.message || err), "err");
   } finally {
@@ -2692,6 +3582,89 @@ $("go").onclick = async () => {
     btn.disabled = false;
     btn.textContent = "이미지 생성";
   }
+};
+
+// ---- 실사 합성 탭 ----
+function setCompStatus(msg, cls) {
+  const el = $("compStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+// 빈 배경을 n장 만들고 상품 원본 픽셀을 자동 배치한다. 카드의 '합성 조정'으로 다시 맞출 수 있다.
+$("compGo").onclick = async () => {
+  const refs = productRefs.concat(...variantGroups.map((g) => g.refs));
+  if (!refs.length) { setCompStatus("상품샷을 넣어주세요 (가능하면 누끼 PNG).", "err"); return; }
+  if (!$("apikey").value.trim() && !$("compWhite").checked) { setCompStatus("API 키를 입력하세요.", "err"); return; }
+  const ratio = $("compRatio").value, n = parseInt($("compCount").value, 10) || 1;
+  const white = $("compWhite").checked, auto = $("compAuto").checked && !!$("apikey").value.trim();
+  const subject = $("compSubject").value.trim();
+  const promptText = white ? "(흰 배경 — AI 배경 생성 없음)"
+    : platePrompt({ scene: $("compScene").value.trim() || "a bright, minimal interior with a clean tabletop surface", subject });
+  const btn = $("compGo");
+  btn.disabled = true;
+  const urls = [], prompts = [];
+  try {
+    btn.innerHTML = '<span class="spin"></span>상품 누끼 준비 중…';
+    const cut = await productCutout(refs[0], (m) => setCompStatus(m));
+    for (let i = 0; i < n; i++) {
+      const step = n > 1 ? " (" + (i + 1) + "/" + n + ")" : "";
+      let plateUrl;
+      if (white) { const [w, h] = ratioPx(ratio, 2048); plateUrl = whitePlate(w, h); }
+      else {
+        btn.innerHTML = '<span class="spin"></span>빈 배경 생성 중…' + step;
+        const img = (await generateImages(promptText, [], ratio, "실사 합성 배경" + step))[0];
+        plateUrl = img.src || ("data:" + img.mime + ";base64," + img.b64);
+      }
+      const plate = await loadImg(plateUrl);
+      let st = compDefault(plate, cut, 0), url = null;
+      if (auto) {
+        btn.innerHTML = '<span class="spin"></span>AI가 상품에 맞춰 장면 맞추는 중…' + step;
+        try { const r = await compHarmonize(plate, cut, st, ratio); url = r.url; st = r.st; }
+        catch (e) { setCompStatus("AI 처리 실패로 캔버스 합성본을 넣었습니다: " + String(e.message || e), "err"); }
+      }
+      if (!url) url = compRender(plate, cut, st).toDataURL("image/jpeg", 0.93);
+      const m = dataUrlToPart(url);
+      urls.push(...addCards([{ mime: m.mime, b64: m.b64, prompt: promptText,
+        comp: { plateUrl, refs: copyRefs(refs), state: st, ratio } }], "실사 합성", promptText));
+      prompts.push(promptText);
+    }
+    addHistory({ kind: "실사 합성", title: subject || "(상품샷 기반)",
+      sub: backendLabel($("backend").value) + " · " + ($("model").value.trim() || currentBackend().defaultModel), thumb: urls[0] || null },
+      { outputs: urls, prompts, product: copyRefs(productRefs), style: [] });
+    setCompStatus(urls.length + "장 완료 — 카드의 '합성 조정'으로 위치·크기·그림자를 다시 맞출 수 있어요.", "ok");
+  } catch (err) {
+    setCompStatus(String(err.message || err), "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "실사 합성 생성";
+  }
+};
+
+// ChatGPT 구독으로 쓰기: API를 부르지 않고, 같은 프롬프트를 복사해 ChatGPT 채팅에
+// 붙여넣게 한다. 사진은 사용자가 직접 올리므로 올릴 순서를 알려준다.
+$("gptCopy").onclick = () => {
+  const productShots = singleProductRefs();
+  if (!$("subject").value.trim() && !productShots.length && !styleRefs.length) {
+    setStatus("상품 설명이나 참조 이미지 중 하나는 필요합니다.", "err"); return;
+  }
+  const missing = missingRequired();
+  if (missing.length) { setStatus("이 시나리오에 꼭 필요한 입력이 비어 있습니다: " + missing.join(", "), "err"); return; }
+  const nP = productShots.length, nS = styleRefs.length;
+  const p = [
+    "Generate one image.",
+    nP + nS ? "The attached images are numbered in upload order (image 1 = first uploaded)." : "",
+    buildPrompt({ s: SCENARIOS[scenarioSel.value], vkey: variantSel.value, subject: $("subject").value.trim(),
+      extra: $("extra").value.trim(), fill: currentFill(), nProduct: nP, nStyle: nS }),
+    "aspect ratio: " + $("ratio").value,
+  ].filter(Boolean).join("\n");
+  const order = [];
+  if (nP) order.push("상품샷 " + nP + "장");
+  if (nS) order.push("레퍼런스 " + nS + "장");
+  const how = order.length ? " ChatGPT에 " + order.join(" → ") + " 순서로 사진을 올리고 붙여넣으세요." : " ChatGPT에 붙여넣으세요.";
+  (navigator.clipboard ? navigator.clipboard.writeText(p) : Promise.reject())
+    .then(() => setStatus("ChatGPT용 프롬프트를 복사했습니다." + how + " (장수 설정은 적용되지 않습니다)", "ok"),
+      () => setStatus("복사하지 못했습니다. 고급 설정의 미리보기에서 직접 복사해주세요.", "err"));
+  window.open("https://chatgpt.com/", "_blank", "noopener");
 };
 
 // =====================================================================
@@ -3045,20 +4018,23 @@ function setDStatus(msg, cls) {
 
 // ---- mode tabs ----
 function setMode(m) {
-  if (m !== "detail" && m !== "set") m = "single";
-  const d = m === "detail", st = m === "set", sg = m === "single";
+  if (m === "comp" && $("tabComp").hidden) m = "single";
+  if (m !== "detail" && m !== "set" && m !== "comp") m = "single";
+  const d = m === "detail", st = m === "set", sg = m === "single", cp = m === "comp";
   document.body.classList.toggle("mode-detail", d);
   document.body.classList.toggle("mode-set", st);
   $("tabSingle").setAttribute("aria-selected", String(sg));
   $("tabSet").setAttribute("aria-selected", String(st));
   $("tabDetail").setAttribute("aria-selected", String(d));
+  $("tabComp").setAttribute("aria-selected", String(cp));
+  $("panelComp").style.display = cp ? "" : "none";
   $("panelSingle").style.display = sg ? "" : "none";
   $("panelSet").style.display = st ? "" : "none";
   $("panelDetail").style.display = d ? "" : "none";
-  $("viewSingle").style.display = sg ? "" : "none";
+  $("viewSingle").style.display = sg || cp ? "" : "none";
   $("viewSet").style.display = st ? "" : "none";
   $("viewDetail").style.display = d ? "" : "none";
-  setActiveZone(d ? "product2" : st ? "product3" : "product");
+  setActiveZone(d ? "product2" : st ? "product3" : cp ? "product4" : "product");
   renderHistory();
   renderPlog();
   try { localStorage.setItem("ui_mode", m); } catch (e) {}
@@ -3066,6 +4042,8 @@ function setMode(m) {
 $("tabSingle").onclick = () => setMode("single");
 $("tabDetail").onclick = () => setMode("detail");
 $("tabSet").onclick = () => setMode("set");
+$("tabComp").onclick = () => setMode("comp");
+try { if (new URLSearchParams(location.search).get("comp") === "1") $("tabComp").hidden = false; } catch (e) {}
 
 // ---- persistence (text only) ----
 let dsaveTimer = null;
@@ -3245,26 +4223,27 @@ async function callTextModelRaw(promptText, apiKey, backend, model, images, opts
   const wantJson = opts.json !== false;
   const turns = textTurns(promptText, opts);
   if (useAnthropic()) return callAnthropic(promptText, images, opts);
-  if (backend === "openrouter") {
+  if (backend === "openrouter" || backend === "openai") {
+    const oa = backend === "openai";
     const messages = turns.map((t, i) => {
       const content = [{ type: "text", text: t.text }];
       if (i === 0) images.forEach((f) => content.push({ type: "image_url", image_url: { url: f.url } }));
       return { role: t.role, content };
     });
     if (opts.system) messages.unshift({ role: "system", content: opts.system });
-    const base = { model, messages, usage: { include: true } };
+    const base = oa ? { model, messages } : { model, messages, usage: { include: true } };
     for (const body of wantJson ? [Object.assign({ response_format: { type: "json_object" } }, base), base] : [base]) {
       let resp;
       try {
-        resp = await fetch(OR_URL, {
+        resp = await fetch(oa ? OA_BASE + "/chat/completions" : OR_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
           body: JSON.stringify(body),
         });
-      } catch (e) { throw new Error(OR_NET_ERR); }
+      } catch (e) { throw new Error(oa ? OA_NET_ERR : OR_NET_ERR); }
       if (resp.ok) {
         const j = await resp.json();
-        trackCost("openrouter", model, j);
+        trackCost(backend, model, j);
         lastTextFinish = j.choices?.[0]?.finish_reason || "";
         const c = j.choices?.[0]?.message?.content;
         const t = Array.isArray(c) ? c.map((p) => p.text || "").join("") : (c || "");
@@ -3272,7 +4251,7 @@ async function callTextModelRaw(promptText, apiKey, backend, model, images, opts
         return t;
       }
       if (resp.status === 400 && body.response_format) continue;   // model without JSON mode
-      throw await httpError(resp, OR_MSG);
+      throw await httpError(resp, oa ? OA_MSG : OR_MSG);
     }
   }
   const contents = turns.map((t, i) => {
@@ -3315,7 +4294,7 @@ function skillSystemPrompt() {
 const SKILL_LABEL = "ecommerce-visual-copywriting 스킬 원문(영어 번역) " + SKILL_FILES.length + "개 파일";
 
 // optionNames: option (color/variant) names, when the seller uploaded option photos.
-function skillRequest(name, info, tone, count, nImages, optionNames, extra, types, mainName) {
+function skillRequest(name, info, tone, count, nImages, optionNames, extra, types, mainName, optPhotos) {
   const picked = (types && types.length ? types : DP_PICKABLE.filter((x) => x[2]).map((x) => x[0]));
   const kinds = { feature: "feature benefits", detail: "material / finish close-ups", wear: "worn / in-use shots", grid: "benefit summary",
     steps: "how to use", compare: "comparison", faq: "FAQ", spec: "specifications" };
@@ -3324,6 +4303,8 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
   const photoLines = [];
   if (nImages) photoLines.push("- The first " + nImages + " attached image(s) are product shots of the real " + (mainName ? "main product — the '" + mainName + "' option" : "product") +
     " (use them for Reference Fidelity).");
+  (optPhotos || []).forEach((o) => photoLines.push("- Image " + o.index + " is the '" + o.name + "' option of the same product — use it to know exactly how that option looks " +
+    "(colour, pattern, finish) when a module shows it."));
   return [
     "[Task] Detail page / PDP for the product below.",
     "[Execution mode] A. Standard Mode — the seller will review the Storyboard and confirm in the next turn.",
@@ -3339,7 +4320,8 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
     ...(photoLines.length ? ["[Photos]", ...photoLines] : []),
     ...(opts ? ["[Options] This product has options (color / type): " + opts.join(", ") +
       ". The page gets an options module automatically (one generated shot per option); refer to the options by these names." +
-      (mainName ? " The seller chose '" + mainName + "' as the main product: every module other than the options module shows this option." : "")] : []),
+      (mainName ? " The seller chose '" + mainName + "' as the main product: by default every module photo shows this option." : " By default every module photo shows the main product.") +
+      " A module photo may instead show another option, or several options together (e.g. a colour line-up), when that serves the module — decide this per photo."] : []),
     "[Copy tone] " + tone,
     count === "auto" ? "" : "[Number of modules] About " + count + " modules, as the seller prefers.",
     "[Module preferences] Opening and closing modules are always included. The seller wants these considered (only where the materials support them): " +
@@ -3372,7 +4354,7 @@ function skillRevise(note) {
 // 3단계를 따로 부르지 않는다: 2단계 요청 끝에 붙여, 모듈 카드를 쓴 모델이 같은 응답에서
 // 이 표시 뒤에 편집기 JSON을 쓰게 한다. JSON이 없거나 잘렸을 때만 convertPrompt로 따로 옮긴다.
 const EDITOR_JSON_MARK = "=====EDITOR JSON=====";
-function convertPrompt(doc, nImages, optionNames, mainName) {
+function convertPrompt(doc, nImages, optionNames, mainName, optPhotos) {
   return [
     "너는 상세페이지 기획서를 웹 편집기용 JSON으로 옮기는 변환기다. 아래 [기획서]는 판매자가 확인한 최종 기획이다.",
     "새로 기획하거나 카피를 다듬지 마라. 기획서에 적힌 것을 편집기 구조에 맞게 옮기기만 해라. JSON 객체 하나만 출력하고, 설명 문장이나 코드펜스는 쓰지 마라.",
@@ -3383,14 +4365,15 @@ function convertPrompt(doc, nImages, optionNames, mainName) {
     "[기획서 — 모듈 실행 카드·품질 검사]",
     doc.cards,
     "",
-    ...editorRules(nImages, optionNames, mainName),
+    ...editorRules(nImages, optionNames, mainName, optPhotos),
   ].join("\n");
 }
 // 편집기 JSON 규칙: 기획서(모듈 카드)를 편집기 구조로 옮기는 방법. 2단계 요청 끝과 convertPrompt가 같이 쓴다.
-function editorRules(nImages, optionNames, mainName) {
+function editorRules(nImages, optionNames, mainName, optPhotos) {
   const opts = optionNames && optionNames.length ? optionNames : null;
   return [
-    ...(nImages ? ["[첨부 사진] " + nImages + "장은 " + (mainName ? "주상품('" + mainName + "' 옵션) " : "") + "상품샷.", ""] : []),
+    ...(nImages ? ["[첨부 사진] 앞 " + nImages + "장은 " + (mainName ? "주상품('" + mainName + "' 옵션) " : "") + "상품샷." +
+      (optPhotos && optPhotos.length ? " 그 뒤 " + optPhotos.map((o) => o.index + "번째 = '" + o.name + "' 옵션").join(", ") + " (옵션별 생김새 참고용)." : ""), ""] : []),
     "옮기는 원칙:",
     "- 모듈 카드(M1, M2 …) 하나가 섹션 하나다. 카드 순서 그대로 옮기고, 빼거나 새로 만들지 마라. 각 섹션의 module에 카드 번호(예: \"M3\")를 적어라.",
     "- 품질 검사에서 Fail이 나와 고친 내용이 있으면 고친 쪽을 따른다.",
@@ -3419,12 +4402,18 @@ function editorRules(nImages, optionNames, mainName) {
     ...DP_SCN_LINES,
     "- variant는 선택이다. 위 목록에서 그 scenario 뒤 [ ] 안에 적힌 키 중 하나만 쓸 수 있고, 어울리는 것이 없으면 넣지 마라.",
     "- ratio는 \"4:5\", \"1:1\", \"3:4\", \"4:3\", \"16:9\" 중 카드의 구도에 맞는 것 (hero는 4:5 권장).",
+    ...(opts ? [
+      "- options: 이 사진에 나올 옵션 이름 배열. 고를 수 있는 이름: " + opts.map((o) => "\"" + o + "\"").join(", ") + " (글자 그대로).",
+      "  " + (mainName ? "기본은 주상품 [\"" + mainName + "\"] 하나." : "주상품만 나오면 빈 배열 []로 둔다.") +
+        " 카드의 화면이 다른 옵션을 보여주면 그 옵션을, 여러 색·종류를 한 장에 함께 보여주면(컬러 라인업, 옵션 비교 등) 그 옵션들을 모두 적어라.",
+      "  사진마다 따로 정한다 — 선택한 옵션의 사진이 이미지 생성에 첨부되고, 고르지 않은 옵션은 그 사진에 나오지 않는다.",
+    ] : []),
     "- match (선택): 이 사진이 앞의 특정 사진과 같은 촬영의 한 세트로 보여야 할 때만, 그 사진을 모듈 번호로 적는다(\"M3\" = M3의 첫 장, \"M3-2\" = M3의 둘째 장).",
     "  앞 사진이 참고 이미지로 함께 들어가 색감·조명·배경 계열을 맞춘다. 판단 기준: 같은 섹션에 나란히 놓이는 2·3번째 사진, 앞 모듈의 장면·모델·공간을 그대로 이어 가는 사진처럼",
     "  카드나 스타일 락이 '같은 장면/세트'를 말할 때만 쓴다. 장면·배경이 서로 다른 컷이면 넣지 마라 — 참고 이미지가 들어가면 모델이 그 사진을 비슷하게 따라 그린다.",
     "  반드시 페이지에서 앞에 있는 사진만 가리킨다. 흰배경 대표이미지(hero-image 누끼)는 가리키지도, 가리킴을 받지도 않는다. 대부분의 사진은 match 없이 둔다.",
     ...(nImages ? [
-      "- 상품샷에서 확실히 보이는 제품의 면을 product_views에 적어라(front, back, side, top, bottom 중).",
+      "- 주상품 상품샷에서 확실히 보이는 제품의 면을 product_views에 적어라(front, back, side, top, bottom 중).",
     ] : []),
     "",
     "배치 옮기기 (카드의 '디자인 설명'(Design notes)과 '화면'에 적힌 배치·읽는 순서·첫 시선을 가장 가깝게 반영):",
@@ -3452,7 +4441,7 @@ function editorRules(nImages, optionNames, mainName) {
     "",
     "출력 예: {\"concept\":{\"name\":\"...\",\"driver\":\"...\",\"summary\":\"...\"},\"product_en\":\"...\"," + (nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") +
       "\"style\":{\"layout\":\"classic\",\"tokens\":{\"align\":\"left\",\"radius\":\"none\"},\"accent\":\"#2F5D50\",\"visual\":\"...\"},\"negative\":\"...\"," +
-      "\"sections\":[{\"module\":\"M1\",\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"note\":\"...\",\"direction\":\"...\"}}," +
+      "\"sections\":[{\"module\":\"M1\",\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"note\":\"...\",\"direction\":\"...\"" + (opts ? ",\"options\":[" + (mainName ? "\"" + mainName + "\"" : "") + "]" : "") + "}}," +
       "{\"module\":\"M2\",\"type\":\"wear\",\"place\":\"above\",\"bg\":\"alt\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\",\"match\":\"M2\"}]}]}",
   ];
 }
@@ -3509,6 +4498,16 @@ function normalizePlan(j) {
           note: str(im.note),
           direction: str(im.direction),
         };
+        // 이 칸에 나올 옵션(옵션 그룹 id). 저장된 초안은 vids, 기획 모델은 options(이름)로 준다.
+        if (Array.isArray(im.vids)) {
+          const ids = im.vids.map(str).filter(Boolean);
+          if (ids.length) one.vids = ids;
+        } else {
+          const names = Array.isArray(im.options) ? im.options : (im.options ? [im.options] : []);
+          const ids = [...new Set(names.map((n) => optionIdByName(str(n))).filter(Boolean))];
+          // 주상품 하나만 적은 경우는 기본값과 같으니 비워 둔다.
+          if (ids.length && !(ids.length === 1 && ids[0] === mainVid)) one.vids = ids;
+        }
         if (im.match) one.match = str(im.match);   // 톤을 맞출 앞 컷: 이미지 키(s…#imgN), 또는 기획 모델이 쓴 "M3"/"M3-2" (아래에서 키로 바꾼다)
         if (im.prompt) one.prompt = str(im.prompt);   // prompt the current image was made with
         if (im.custom) one.custom = str(im.custom);   // hand-edited prompt (overrides the automatic one)
@@ -3661,11 +4660,20 @@ function checkPlanInputs() {
 // Photos for the text model: up to 3 shots of the main product (★ 주상품 > 옵션 없는 사진 > 첫 옵션 —
 // 섹션 이미지를 만들 때 쓰는 사진과 같다), downscaled.
 // mainName: 주상품이 옵션이면 그 옵션 이름, 아니면 "".
+// 주상품 사진(최대 3장) 뒤에 다른 옵션마다 첫 사진 1장씩(최대 5개) 붙인다 — 기획 모델이 옵션별
+// 생김새를 알고 사진마다 어떤 옵션을 보여줄지 정할 수 있게. optPhotos: [{name, index}] (1부터).
 function planPhotos() {
   const groups = filledVariants();
   const mainRefs = mainProductRefs();
   const mg = groups.find((g) => g.refs === mainRefs);
-  return { groups, images: mainRefs.slice(0, 3), mainName: mg ? (mg.name.trim() || "옵션") : "" };
+  const images = mainRefs.slice(0, 3);
+  const nMain = images.length;
+  const optPhotos = [];
+  groups.filter((g) => g.refs !== mainRefs).slice(0, 5).forEach((g) => {
+    images.push(g.refs[0]);
+    optPhotos.push({ name: g.name.trim() || "옵션", index: images.length });
+  });
+  return { groups, images, nMain, optPhotos, mainName: mg ? (mg.name.trim() || "옵션") : "" };
 }
 function planModel() {
   const backend = $("backend").value;
@@ -3701,9 +4709,9 @@ $("dpStoryEdit").onclick = () => { storyEditing = !storyEditing; renderStory(); 
 // 1단계: 스킬(표준 모드) → 전략·근거 목록 + 스토리보드.
 async function makeStoryboard(apiKey, name, info, auto) {
   const { backend, model } = planModel();
-  const { groups, images, mainName } = planPhotos();
-  const request = skillRequest(name, info, DP_TONES[$("dTone").value] || DP_TONES.auto, $("dCount").value, images.length,
-    groups.map((g) => g.name.trim() || "옵션"), $("dExtra").value.trim(), pickedTypes(), mainName);
+  const { groups, images, nMain, optPhotos, mainName } = planPhotos();
+  const request = skillRequest(name, info, DP_TONES[$("dTone").value] || DP_TONES.auto, $("dCount").value, nMain,
+    groups.map((g) => g.name.trim() || "옵션"), $("dExtra").value.trim(), pickedTypes(), mainName, optPhotos);
   const text = await callTextModel(request, apiKey, backend, model, images, "상세페이지 1단계 · 스토리보드", skillOpts([]));
   dstory = { turns: [{ role: "user", text: request }], text: text.trim(), auto, nImages: images.length, mainName };
   $("dpStoryNote").value = "";
@@ -3735,10 +4743,10 @@ async function reviseStoryboard(apiKey, note) {
 async function continuePlan(apiKey, note) {
   if (photosChanged()) throw new Error(PHOTOS_CHANGED);
   const { backend, model } = planModel();
-  const { groups, images, mainName } = planPhotos();
+  const { groups, images, nMain, optPhotos, mainName } = planPhotos();
   const history = dstory.turns.concat([{ role: "assistant", text: dstory.text }]);
   const optNames = groups.map((g) => g.name.trim() || "옵션");
-  const rules = editorRules(images.length, optNames, mainName);
+  const rules = editorRules(nMain, optNames, mainName, optPhotos);
   setDStatus("2/2 모듈 실행 카드·품질 검사·편집기 구성 쓰는 중…", "");
   const raw = await callTextModel(skillContinue(note, rules), apiKey, backend, model, images, "상세페이지 2단계 · 모듈 카드", skillOpts(history));
   const at = raw.indexOf(EDITOR_JSON_MARK);
@@ -3754,7 +4762,7 @@ async function continuePlan(apiKey, note) {
   if (!plan) {
     // 응답이 길어 편집기 JSON이 빠지거나 잘렸다: 기획서만 보내 JSON을 따로 받는다(스킬 원문 없이, 가볍게).
     setDStatus("편집기 구성이 응답에서 빠져 따로 한 번 더 요청합니다…", "");
-    const prompt = convertPrompt(doc, images.length, optNames, mainName);
+    const prompt = convertPrompt(doc, nMain, optNames, mainName, optPhotos);
     lastTextCalls = 3;
     try {
       plan = parsePlan(await callTextModel(prompt, apiKey, backend, model, images, "상세페이지 편집기 변환 (보충)"));
@@ -3926,35 +4934,72 @@ $("dpDocSave").onclick = () => {
 // the section's custom prompt. Resolves true = generate, false = keep the plan only.
 try { if (localStorage.getItem("detail_review") === "1") $("dReview").checked = true; } catch (e) {}
 $("dReview").onchange = () => { try { localStorage.setItem("detail_review", $("dReview").checked ? "1" : "0"); } catch (e) {} };
-function reviewPrompts() {
+async function reviewPrompts() {
   const jobs = emptyImageJobs();
-  if (!jobs.length) return Promise.resolve(true);
+  if (!jobs.length) return true;
+  // 디테일을 먼저 뽑아 두면 자동 프롬프트에 그 줄이 들어가 검토 창에서 보인다.
+  if ($("specCheck").checked && $("apikey").value.trim()) {
+    const sets = [dpProductRefs()].concat(jobs.filter((j) => j.k != null).map((j) => {
+      const g = variantGroups.find((v) => v.id === j.s.items[j.k].vid);
+      return g ? g.refs : [];
+    })).concat(...jobs.filter((j) => j.k == null).map((j) => (slotOptionGroups(j.s.images[j.slot || 0]) || []).map((g) => g.refs)))
+      .filter((r) => r.some((f) => f.b64));
+    setDStatus("상품 디테일 추출 중… (검토 창에 넣을 내용)");
+    for (const r of sets) { try { await productSpec(r.filter((f) => f.b64)); } catch (e) { setDStatus("상품 디테일 추출 실패: " + String(e.message || e), "err"); } }
+    setDStatus("");
+  }
   return new Promise((resolve) => {
     const list = $("rvList");
     list.innerHTML = "";
     const rows = jobs.map((job) => {
       const s = job.s, it = job.k == null ? null : s.items[job.k];
       const g = it ? variantGroups.find((v) => v.id === it.vid) : null;
-      const text = it ? optionPrompt(s, job.k) : sectionPrompt(s);
-      const auto = it ? autoOptionPrompt(s, job.k) : autoSectionPrompt(s);
+      const slot = job.slot || 0;
+      const text = it ? optionPrompt(s, job.k) : sectionPrompt(s, slot);
+      const auto = it ? autoOptionPrompt(s, job.k) : autoSectionPrompt(s, slot);
+      const prod = it ? (g ? g.refs : []) : slotProductRefs(s.images[slot]);
+      const qaGroups = it ? null : slotQaGroups(s.images[slot]);
       const wrap = document.createElement("div");
       wrap.className = "rvitem";
       const lab = document.createElement("div");
       lab.className = "rvlabel";
       lab.textContent = (dplan.sections.indexOf(s) + 1) + "번 " + DP_TYPES[s.type] + (it ? " · " + it.title : "") +
+        (!it && s.images.length > 1 ? " · " + (slot + 1) + "번 이미지" : "") +
         (s.headline ? " — " + s.headline.split("\n")[0] : "");
+      // 무엇이 첨부되는지: 상품샷(옵션별) + 톤 참조 / 옵션 이미지는 그 옵션 사진 + 구도 기준 컷.
+      const att = document.createElement("div");
+      att.className = "rvatt";
+      const mainG = variantGroups.find((v) => v.refs === dpProductRefs());
+      const parts = it
+        ? [(g ? "'" + optName(g) + "' 사진 " + g.refs.length + "장" : "옵션 사진 없음"), optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""]
+        : [qaGroups ? qaGroups.map((x) => "'" + x.name + "' " + x.refs.length + "장").join(" + ")
+            : (prod.length ? (mainG ? "주상품 '" + optName(mainG) + "' " : "상품샷 ") + prod.length + "장" : "상품샷 없음"),
+          dpStyleRefs(s, slot).length ? "톤 참조 1장" : ""];
+      att.textContent = "첨부: " + parts.filter(Boolean).join(" · ");
       const ta = document.createElement("textarea");
       ta.value = text;
-      wrap.appendChild(lab); wrap.appendChild(ta);
+      // 생성 후 검사(C): 사람이 읽는 설명 + 실제로 보낼 검사·수정 프롬프트.
+      const qa = document.createElement("details");
+      qa.className = "rvqa";
+      const sum = document.createElement("summary");
+      sum.textContent = qaPlanText(prod);
+      qa.appendChild(sum);
+      if (prod.length && $("qaCheck").checked) {
+        const pre = document.createElement("pre");
+        pre.className = "promptbox";
+        pre.textContent = qaPromptsPreview(qaGroups || prod);
+        qa.appendChild(pre);
+      }
+      wrap.appendChild(lab); wrap.appendChild(att); wrap.appendChild(ta); wrap.appendChild(qa);
       list.appendChild(wrap);
-      return { s, it, ta, auto };
+      return { s, it, slot, ta, auto };
     });
     const dlg = $("rvDlg");
     const done = (ok) => {
       dlg.oncancel = null;
       if (ok) rows.forEach((r) => {
         const v = r.ta.value;
-        const target = r.it || r.s.image;
+        const target = r.it || r.s.images[r.slot];
         if (v.trim() && v !== r.auto) target.custom = v; else delete target.custom;
       });
       if (dlg.open) dlg.close();
@@ -4302,6 +5347,35 @@ function renderTools(s, i) {
       r.appendChild(scn);
       if (vkeys.length) r.appendChild(vsel);
       if (msel.options.length) r.appendChild(msel);
+      const fv = filledVariants();
+      if (fv.length) {
+        const box = document.createElement("span");
+        box.className = "sec-opts";
+        box.title = "이 이미지에 넣을 옵션. 고른 옵션의 사진만 첨부합니다. 아무것도 안 고르면 주상품.";
+        box.appendChild(document.createTextNode("옵션"));
+        const chosen = im.vids || [];
+        fv.forEach((g) => {
+          const lab = document.createElement("label");
+          const cb = document.createElement("input");
+          cb.type = "checkbox"; cb.checked = chosen.includes(g.id); cb.disabled = busy;
+          cb.onchange = () => {
+            const on = new Set(im.vids || []);
+            if (cb.checked) on.add(g.id); else on.delete(g.id);
+            im.vids = fv.map((x) => x.id).filter((id) => on.has(id));
+            if (!im.vids.length) delete im.vids;
+            saveDetailSoon(); renderDetail();
+          };
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(optName(g)));
+          box.appendChild(lab);
+        });
+        if (!slotOptionGroups(im)) {
+          const d = document.createElement("em");
+          d.textContent = "기본: 주상품";
+          box.appendChild(d);
+        }
+        r.appendChild(box);
+      }
       r.appendChild(ratio); r.appendChild(size); r.appendChild(brk()); r.appendChild(dir);
       r.appendChild(toolButton(busy ? "생성 중…" : (dimgs[key] ? "다시 생성" : "이미지 생성"),
         () => genSectionImage(s, null, k).catch((e) => setDStatus(String(e.message || e), "err")), busy));
@@ -4605,6 +5679,43 @@ const DP_WHITE_RULE = "this is a cut-out packshot: the product alone on a pure w
 // 옵션이 여럿이면 일반 섹션은 주상품 사진만 받는다. 장면이 "블랙·핑크 나란히"를 요구하면
 // 모델이 주상품의 패턴을 그대로 복사하고 색만 바꿔 다른 옵션을 지어낸다. 그래서 나머지
 // 옵션마다 대표 사진 한 장을 스타일 레퍼런스 뒤에 붙이고, 옵션끼리 패턴을 옮기지 말라고 못 박는다.
+// 옵션 이름 -> 그룹 id (공백·대소문자 무시). 이름 없는 옵션은 "옵션"으로 부른다.
+function optionIdByName(n) {
+  const k = (x) => String(x || "").replace(/\s+/g, "").toLowerCase();
+  const g = filledVariants().find((v) => k(v.name.trim() || "옵션") === k(n));
+  return g ? g.id : "";
+}
+// 이 칸에 나올 옵션 묶음 (사진 있는 것만, 고른 순서). 고른 게 없으면 null = 주상품 기본.
+function slotOptionGroups(im) {
+  const ids = im && Array.isArray(im.vids) ? im.vids : [];
+  const gs = ids.map((id) => variantGroups.find((g) => g.id === id && g.refs.length)).filter(Boolean);
+  return gs.length ? gs : null;
+}
+const optName = (g) => g.name.trim() || "옵션";
+// 이 칸에 첨부할 상품샷: 고른 옵션들의 사진을 이어 붙인 것, 없으면 주상품 사진.
+function slotProductRefs(im) {
+  const gs = slotOptionGroups(im);
+  return gs ? [].concat(...gs.map((g) => g.refs)) : dpProductRefs();
+}
+// 디테일 추출·일치 검사용 묶음 (옵션을 골랐을 때만).
+function slotQaGroups(im) {
+  const gs = slotOptionGroups(im);
+  return gs ? gs.map((g) => ({ name: optName(g), refs: g.refs })) : null;
+}
+// 첨부 순서대로 "image 1-2 = '블랙' 옵션" 매핑과, 옵션끼리 섞지 말라는 지시.
+function slotOptionLine(im) {
+  const gs = slotOptionGroups(im);
+  if (!gs) return "";
+  let i = 1;
+  const map = gs.map((g) => { const r = imgRange(i, i + g.refs.length - 1); i += g.refs.length; return r + " = the '" + optName(g) + "' option"; });
+  if (gs.length === 1) {
+    return "this image shows the '" + optName(gs[0]) + "' option of the product (" + map[0] + "); its colour, pattern, material, and finish come ONLY from " +
+      "its photo(s); " + OPTION_COLOR_OVERRIDE;
+  }
+  return "options in this image: " + map.join("; ") + ". Show all " + gs.length + " options together in this one image (arranged as the scene direction says), " +
+    "each as a separate item whose colour, pattern, print, material, and finish are copied exactly from its own photo(s) — they share the same shape and construction, " +
+    "but never mix or transfer colours or details between options, and show no option that is not listed here; " + OPTION_COLOR_OVERRIDE;
+}
 function dpOtherOptionRefs() {
   const main = dpProductRefs();
   return filledVariants().filter((g) => g.refs !== main).slice(0, 3)
@@ -4623,9 +5734,11 @@ function otherOptionsLine(others, from, nProduct) {
 }
 function autoSectionPrompt(s, k) {
   const im = s.images[k || 0];
-  const nProduct = dpProductRefs().length;
+  const picked = slotOptionGroups(im);
+  const nProduct = slotProductRefs(im).length;
   const nStyle = dpStyleRefs(s, k || 0).length;
-  const others = nProduct ? dpOtherOptionRefs() : [];
+  // 칸마다 고른 옵션(기본: 주상품)의 사진만 첨부한다 — 고르지 않은 옵션 사진은 보내지 않는다.
+  const others = [];
   const anchored = nStyle > 0;
   const sameSec = anchored && (s.images[k || 0].match || "").split("#")[0] === s.id;
   const white = dpWhitePackshot(im);
@@ -4662,8 +5775,10 @@ function autoSectionPrompt(s, k) {
   return [
     buildPrompt({ s: scn, vkey: im.variant || "", subject: dplan.product_en || $("dName").value.trim(), extra, nProduct, nStyle }),
     nProduct && dplan.product_views.length && usesViewLine(scn, im.variant || "") ? viewsLine(dplan.product_views) : "",
+    slotOptionLine(im),
     otherOptionsLine(others, nProduct + nStyle + 1, nProduct),
     notesLine(st.adjust || []),
+    nProduct ? cachedSpecLine(slotQaGroups(im) || dpProductRefs()) : "",
   ].filter(Boolean).join("\n");
 }
 // Options differ only by colour/finish, so every colour word in the rest of the prompt
@@ -4714,18 +5829,18 @@ function autoOptionPrompt(s, k) {
         "those come only from " + imgRange(1, nRefs) + "."
       : "camera angle matching the product photo, so the product is seen from the same side as in the product photo.",
     notesLine(st.adjust || []),
+    cachedSpecLine((variantGroups.find((v) => v.id === it.vid) || {}).refs),
   ].filter(Boolean).join("\n");
 }
 
-async function genImageUrl(promptText, refs, ratio, tag, size) {
-  const apiKey = $("apikey").value.trim();
-  if (!apiKey) throw new Error("API 키를 입력하세요.");
-  const backend = $("backend").value;
-  const model = $("model").value.trim() || currentBackend().defaultModel;
-  const images = backend === "openrouter"
-    ? extractORImages(await callOpenRouter(promptText, apiKey, model, ratio, refs.map((f) => f.url), tag))
-    : extractImages(await callGemini(promptText, apiKey, model, ratio, refs, tag, size));
-  const img = images[0];
+// opts가 있으면 상품 충실도 보강(디테일 추출·일치 검사·자동 수정)을 거친다: {nProduct, say, onDone(result)}.
+async function genImageUrl(promptText, refs, ratio, tag, size, opts) {
+  if (opts && opts.nProduct) {
+    const r = await genChecked(promptText, refs, ratio, tag, size, opts);
+    if (opts.onDone) opts.onDone(r);
+    return r.url;
+  }
+  const img = (await generateImages(promptText, refs, ratio, tag, size))[0];
   return img.src || ("data:" + img.mime + ";base64," + img.b64);
 }
 
@@ -4745,23 +5860,26 @@ async function genSectionImage(s, editInstr, slotArg) {
       "\nKeep everything else identical to the attached image — same product, composition, lighting, and style. Apply only the requested change." +
       "\nDo not add any text, letters, or badges.\nconstraints: " + EDIT_CONSTRAINTS;
   } else {
-    refs = dpProductRefs().slice();
+    refs = slotProductRefs(im).slice();
     dpStyleRefs(s, slot).forEach((u, i) => {
       const m = u.match(/^data:([^;]+);base64,(.+)$/);
       if (m) refs.push({ name: (im.match || "").split("#")[0] === s.id ? "sibling" : "page-tone", mime: m[1], b64: m[2], url: u });
     });
-    // autoSectionPrompt가 세는 순서와 같게: 상품샷 → 스타일 레퍼런스 → 다른 옵션.
-    if (dpProductRefs().length && !im.custom) dpOtherOptionRefs().forEach((o) => refs.push(o.ref));
+    // autoSectionPrompt가 세는 순서와 같게: 상품샷(고른 옵션들) → 스타일 레퍼런스.
     promptText = sectionPrompt(s, slot);
   }
   dbusy.add(key);
   renderDetail();
   try {
-    const url = await genImageUrl(promptText, refs, im.ratio, "상세 · " + DP_TYPES[s.type] +
-      (s.images.length > 1 ? " " + (slot + 1) + "/" + s.images.length : "") + (editInstr ? " 수정" : ""),
-      slotSizeHint(s, slot));
+    const label = "상세 · " + DP_TYPES[s.type] + (s.images.length > 1 ? " " + (slot + 1) + "/" + s.images.length : "");
+    let done = null;
+    const url = await genImageUrl(promptText, refs, im.ratio, label + (editInstr ? " 수정" : ""), slotSizeHint(s, slot),
+      editInstr ? null : { nProduct: slotProductRefs(im).length, groups: slotQaGroups(im), say: (m) => setDStatus(m), onDone: (r) => { done = r; },
+        shouldStop: () => dpRun.stop });
     dimgs[key] = url;
-    im.prompt = promptText;
+    im.prompt = done ? done.prompt : promptText;
+    const qn = qaNote(done);
+    if (qn) setDStatus(label + " — " + qn, done.failed ? "err" : "ok");
     saveDetailSoon();
     return url;
   } finally {
@@ -4791,9 +5909,13 @@ async function genOptionImage(s, k) {
   dbusy.add(key);
   renderDetail();
   try {
-    const url = await genImageUrl(promptText, refs, "1:1", "상세 · 옵션 · " + it.title);
+    let done = null;
+    const url = await genImageUrl(promptText, refs, "1:1", "상세 · 옵션 · " + it.title, null,
+      { nProduct: g.refs.length, say: (m) => setDStatus(m), onDone: (r) => { done = r; }, shouldStop: () => dpRun.stop });
     dimgs[key] = url;
-    it.prompt = promptText;
+    it.prompt = done ? done.prompt : promptText;
+    const qn = qaNote(done);
+    if (qn) setDStatus("옵션 '" + it.title + "' — " + qn, done.failed ? "err" : "ok");
     saveDetailSoon();
     return url;
   } finally {
@@ -4818,26 +5940,60 @@ function emptyImageJobs() {
 }
 // Generate all empty images; after the first one, ask whether the look is right.
 // Adjustments typed there are kept in dplan.style.adjust and apply to every later image.
+// 빈 이미지 일괄 생성 중단: 이미 보낸 요청은 서버에서 비용이 나가므로 끊지 않고,
+// 지금 이미지까지만 받고(남은 자동 수정은 건너뜀) 다음 이미지로 넘어가지 않는다.
+const dpRun = { active: false, stop: false };
+function dpRunUI(text) {
+  const bar = $("dpRunBar"), gen = $("dpGenAll"), stopBtn = $("dpRunStop");
+  if (text == null) {
+    bar.hidden = true;
+    gen.classList.remove("stop"); gen.disabled = false; gen.textContent = "빈 이미지 모두 생성"; gen.title = "";
+    return;
+  }
+  bar.hidden = false;
+  $("dpRunText").textContent = dpRun.stop ? "지금 이미지까지만 완성하고 멈추는 중…" : text;
+  stopBtn.disabled = dpRun.stop; stopBtn.textContent = dpRun.stop ? "중단하는 중…" : "중단";
+  gen.classList.add("stop"); gen.disabled = dpRun.stop;
+  gen.textContent = dpRun.stop ? "중단하는 중…" : "■ 생성 중단";
+  gen.title = "지금 만드는 이미지까지만 완성하고 멈춥니다";
+}
+function dpRequestStop() {
+  if (!dpRun.active || dpRun.stop) return;
+  dpRun.stop = true;
+  dpRunUI("");
+  setDStatus("지금 만드는 이미지까지만 완성하고 멈춥니다…", "");
+}
+$("dpRunStop").onclick = dpRequestStop;
+const dpJobLabel = (job) => (dplan.sections.indexOf(job.s) + 1) + "번 " + DP_TYPES[job.s.type] +
+  (job.k != null ? " · " + (job.s.items[job.k].title || "옵션") : job.s.images.length > 1 ? " · " + ((job.slot || 0) + 1) + "번 이미지" : "");
 async function runDetailImages(prefix) {
   const jobs = emptyImageJobs();
   let made = 0;
   // 섹션마다 묻지 않는다 — 한 번 취소하면 이번 실행 전체를 멈춘다.
   if (jobs.some((j) => j.slot != null) && !dpPhotoGuard()) return { made, total: jobs.length, stopped: true };
-  for (let j = 0; j < jobs.length; j++) {
-    const job = jobs[j];
-    if (!dplan.sections.includes(job.s)) continue;   // deleted meanwhile
-    setDStatus((prefix || "") + "이미지 생성 중… (" + (j + 1) + "/" + jobs.length + ")", "");
-    const url = job.slot != null ? await genSectionImage(job.s, null, job.slot) : await genOptionImage(job.s, job.k);
-    if (!url) continue;
-    made++;
-    if (j === 0 && jobs.length > 1 && firstCheckOn()) {
-      const ans = await askCheckpoint(url, jobs.length - 1);
-      if (ans.note) { dplan.style.adjust.push(ans.note); saveDetailSoon(); }
-      if (ans.action === "stop") return { made, total: jobs.length, stopped: true };
-      if (ans.action === "retry") { j = -1; continue; }
+  dpRun.active = true; dpRun.stop = false;
+  try {
+    for (let j = 0; j < jobs.length; j++) {
+      if (dpRun.stop) return { made, total: jobs.length, stopped: true, byUser: true };
+      const job = jobs[j];
+      if (!dplan.sections.includes(job.s)) continue;   // deleted meanwhile
+      dpRunUI("이미지 " + (j + 1) + "/" + jobs.length + " 생성 중 · " + dpJobLabel(job));
+      setDStatus((prefix || "") + "이미지 생성 중… (" + (j + 1) + "/" + jobs.length + ")", "");
+      const url = job.slot != null ? await genSectionImage(job.s, null, job.slot) : await genOptionImage(job.s, job.k);
+      if (!url) continue;
+      made++;
+      if (j === 0 && jobs.length > 1 && firstCheckOn() && !dpRun.stop) {
+        const ans = await askCheckpoint(url, jobs.length - 1);
+        if (ans.note) { dplan.style.adjust.push(ans.note); saveDetailSoon(); }
+        if (ans.action === "stop") return { made, total: jobs.length, stopped: true, byUser: true };
+        if (ans.action === "retry") { j = -1; continue; }
+      }
     }
+    return { made, total: jobs.length, stopped: dpRun.stop, byUser: dpRun.stop };
+  } finally {
+    dpRun.active = false; dpRun.stop = false;
+    dpRunUI(null);
   }
-  return { made, total: jobs.length, stopped: false };
 }
 
 // 상품샷이 없으면 제품 충실도 지시(FIDELITY_TEXT·FIDELITY_PRIORITY)와 product_notes,
@@ -4855,6 +6011,7 @@ function dpPhotoGuard() {
   return ok;
 }
 $("dpGenAll").onclick = async () => {
+  if (dpRun.active) { dpRequestStop(); return; }   // 생성 중에는 이 버튼이 '중단'이다
   if (!dplan) return;
   if (!emptyImageJobs().length) { setDStatus("빈 이미지가 없습니다. 바꾸고 싶은 섹션은 '다시 생성'을 누르세요.", "ok"); return; }
   if (!dpPhotoGuard()) return;
@@ -4862,8 +6019,15 @@ $("dpGenAll").onclick = async () => {
   btn.disabled = true;
   let r = { made: 0 };
   try {
+    // 만들기 전에 이미지별 프롬프트(첨부 옵션·디테일·생성 후 검사)를 보여주고 확인받는다.
+    const ok = await reviewPrompts();
+    btn.disabled = false;
+    if (!ok) { setDStatus("이미지 생성을 취소했습니다.", "ok"); return; }
     r = await runDetailImages("");
-    setDStatus("이미지 " + r.made + "장 생성" + (r.stopped ? " 후 중단" : " 완료") + ". 마음에 안 드는 섹션은 '다시 생성'이나 '수정 요청'을 쓰세요.", "ok");
+    const left = emptyImageJobs().length;
+    setDStatus(r.stopped
+      ? "중단: 이미지 " + r.made + "장 생성" + (left ? " · 남은 " + left + "장은 비어 있어요 — '빈 이미지 모두 생성'을 다시 누르면 이어서 만듭니다." : ".")
+      : "이미지 " + r.made + "장 생성 완료. 마음에 안 드는 섹션은 '다시 생성'이나 '수정 요청'을 쓰세요.", "ok");
   } catch (err) {
     setDStatus(String(err.message || err), "err");
   } finally {
@@ -5372,9 +6536,13 @@ async function ssGenSlot(sl, editInstr) {
   sbusy.add(sl.id);
   renderSet();
   try {
-    const url = await genImageUrl(promptText, refs, "1:1", "세트 · " + ssName(sl) + (editInstr ? " 수정" : ""));
+    let done = null;
+    const url = await genImageUrl(promptText, refs, "1:1", "세트 · " + ssName(sl) + (editInstr ? " 수정" : ""), null,
+      editInstr ? null : { nProduct: productRefs.length, say: (m) => setSStatus(m), onDone: (r) => { done = r; } });
     simgs[sl.id] = url;
-    sl.prompt = promptText;
+    sl.prompt = done ? done.prompt : promptText;
+    const qn = qaNote(done);
+    if (qn) setSStatus(ssName(sl) + " — " + qn, done.failed ? "err" : "ok");
     sl.warn = whiteMain ? await ssWhiteCheck(url) : "";
     if (sl.role === "extra" && !ssAnchorReady()) splan.anchor = sl.id;   // first extra shot sets the look
     saveSetSoon();
@@ -5880,7 +7048,7 @@ $("ssZip").onclick = async () => {
   const HISTORY_MAX = 50;
   const AUTH_ITER = 200000;
   const VAULT_ITER = 600000;
-  const ANON_KEYS = ["gemini_api_key", "openrouter_api_key", "anthropic_api_key", "api_cost_v1", "prompt_log_v1",
+  const ANON_KEYS = ["gemini_api_key", "openrouter_api_key", "openai_api_key", "anthropic_api_key", "api_cost_v1", "prompt_log_v1",
     "gen_history_v1", "detail_state_v1", "ref_brief_v1", "set_state_v1"];
   const nsFor = (uid, k) => "u:" + uid + ":" + k;
   const imgPath = (id) => user.id + "/" + id + ".json";
@@ -5945,7 +7113,7 @@ $("ssZip").onclick = async () => {
   }
 
   // ---------- API keys <-> page ----------
-  const KEY_FIELDS = { gemini: BACKENDS.gemini.keyStore, openrouter: BACKENDS.openrouter.keyStore, anthropic: ANTHROPIC_KEY_STORE };
+  const KEY_FIELDS = { gemini: BACKENDS.gemini.keyStore, openrouter: BACKENDS.openrouter.keyStore, openai: BACKENDS.openai.keyStore, anthropic: ANTHROPIC_KEY_STORE };
   function readKeys() {
     const o = {};
     Object.entries(KEY_FIELDS).forEach(([k, st]) => { try { o[k] = localStorage.getItem(st) || ""; } catch (e) { o[k] = ""; } });
@@ -6245,7 +7413,7 @@ $("ssZip").onclick = async () => {
     if (AUTH_UID) return;
     const n = history.filter((h) => h.id).length;
     let hasKeys = false;
-    try { hasKeys = ["gemini_api_key", "openrouter_api_key", "anthropic_api_key"].some((k) => localStorage.getItem(k)); } catch (e) {}
+    try { hasKeys = ["gemini_api_key", "openrouter_api_key", "openai_api_key", "anthropic_api_key"].some((k) => localStorage.getItem(k)); } catch (e) {}
     if (!n && !hasKeys && !plog.length) return;
     const what = [n ? "요청 기록 " + n + "건" : "", plog.length ? "프롬프트 로그" : "", hasKeys ? "저장된 API 키" : ""].filter(Boolean).join(", ");
     if (!confirm("이 브라우저에 로그인 전에 쓰던 데이터가 있습니다 (" + what + ").\n\n" +
@@ -6329,7 +7497,7 @@ $("ssZip").onclick = async () => {
     try {
       if (keys) Object.entries(keys).forEach(([k, v]) => {
         const st = nsFor(u.id, k + "_api_key");
-        if (v && ["gemini", "openrouter", "anthropic"].includes(k) && !localStorage.getItem(st)) localStorage.setItem(st, v);
+        if (v && ["gemini", "openrouter", "openai", "anthropic"].includes(k) && !localStorage.getItem(st)) localStorage.setItem(st, v);
       });
       localStorage.setItem(nsFor(u.id, "email"), u.email || "");
       localStorage.setItem("auth_uid", u.id);
