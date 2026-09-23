@@ -514,7 +514,7 @@ html.need-login .wrap { display: none; }
             <div class="hint">상품샷이 있으면 input_fidelity=high로 보내 원본 형태·로고·질감을 최대한 유지합니다.</div>
           </fieldset>
           <fieldset style="margin-bottom:0">
-            <label class="top" for="textModel">텍스트 모델 <span class="tag">상세페이지 구성·카피</span></label>
+            <label class="top" for="textModel">텍스트 모델 <span class="tag">상세페이지 구성·카피 (복잡한 일)</span></label>
             <input type="text" id="textModel" value="gemini-3.6-flash">
             <div class="hint" id="textModelHint">예: gemini-3.6-flash (기본) · gemini-3.1-pro</div>
           </fieldset>
@@ -534,7 +534,7 @@ html.need-login .wrap { display: none; }
             <div class="hint" id="textEngineHint">구성·카피·추천을 위 백엔드의 텍스트 모델로 만듭니다.</div>
           </fieldset>
           <fieldset style="margin:14px 0 0">
-            <label class="top" for="lightModel">가벼운 텍스트 모델 <span class="tag">스마트스토어 세트 추천</span></label>
+            <label class="top" for="lightModel">가벼운 텍스트 모델 <span class="tag">각도 확인 · 디테일 추출 · 일치 검사 · 세트 추천</span></label>
             <input type="text" id="lightModel" value="gemini-3.1-flash-lite">
             <div class="hint" id="lightModelHint">예: gemini-3.1-flash-lite (기본). 모델을 못 찾으면 위 텍스트 모델로 자동 대체합니다.</div>
           </fieldset>
@@ -549,16 +549,9 @@ html.need-login .wrap { display: none; }
         </label>
         <label class="viewcheck" style="margin:8px 0 0">
           <input type="checkbox" id="qaCheck" checked>
-          생성 후 상품 일치 검사 <span class="tag">원본 사진과 비교 · 이미지당 텍스트 호출 1번</span>
+          생성 후 상품 일치 검사 <span class="tag">원본과 비교해 점수만 표시 · 이미지당 가벼운 텍스트 호출 1번</span>
         </label>
-        <div class="row" id="qaRow" style="margin-top:6px;align-items:center;gap:8px;font-size:13px">
-          <span style="white-space:nowrap">불일치면 자동 수정</span>
-          <select id="qaRetry" aria-label="자동 수정 횟수">
-            <option value="0">안 함 (검사만)</option>
-            <option value="1" selected>최대 1회</option>
-            <option value="2">최대 2회</option>
-          </select>
-        </div>
+
       </div>
 
       <div class="panel" id="panelSingle">
@@ -1054,10 +1047,10 @@ const BACKENDS = {
         ["openai/gpt-5-image-mini", "GPT-5 Image Mini"],
       ]],
     ],
-    defaultTextModel: "google/gemini-2.5-flash",
-    textModelHint: "예: google/gemini-2.5-flash · anthropic/claude-sonnet-5 · openai/gpt-5",
-    defaultLightModel: "google/gemini-2.5-flash-lite",
-    lightModelHint: "예: google/gemini-2.5-flash-lite · anthropic/claude-haiku-4.5. 모델을 못 찾으면 위 텍스트 모델로 자동 대체합니다.",
+    defaultTextModel: "google/gemini-3.6-flash",
+    textModelHint: "기획·카피처럼 판단이 복잡한 일에 씁니다. 예: google/gemini-3.6-flash · anthropic/claude-sonnet-5 · openai/gpt-5.2",
+    defaultLightModel: "google/gemini-3.1-flash-lite",
+    lightModelHint: "검사·추출처럼 단순한 일에 씁니다. 예: google/gemini-3.1-flash-lite · google/gemini-2.5-flash-lite(가장 저렴). 못 찾으면 위 텍스트 모델로 대체합니다.",
   },
   openai: {
     keyStore: nsKey("openai_api_key"),
@@ -1177,6 +1170,12 @@ $("modelPick").onchange = () => {
   } catch (e) {}
 })();
 
+// 가벼운 텍스트 모델(각도 확인·디테일 추출·일치 검사·지시문 맞추기). 비워 두면 기획용 모델을 쓴다.
+function lightTextModel() {
+  const be = currentBackend();
+  if (useAnthropic()) return anthropicModelName();
+  return $("lightModel").value.trim() || be.defaultLightModel || $("textModel").value.trim() || be.defaultTextModel;
+}
 // ---- Text model: the chosen backend, or the Anthropic API ----
 // Text only — Claude does not generate images, the image backend does.
 const textEngine = () => $("textEngine").value;
@@ -1213,14 +1212,11 @@ function saveBackendSettings() {
   st.textEngine = $("textEngine").value;
   st.anthropicModel = $("anthropicModel").value.trim();
   st.oaQuality = $("oaQuality").value;
-  st.qa = { spec: $("specCheck").checked, check: $("qaCheck").checked, retry: $("qaRetry").value };
+  st.qa = { spec: $("specCheck").checked, check: $("qaCheck").checked };
   try { localStorage.setItem(BKEY, JSON.stringify(st)); } catch (e) {}
 }
 $("backend").onchange = () => { applyBackendUI(); saveBackendSettings(); };
-["specCheck", "qaCheck", "qaRetry"].forEach((id) => $(id).addEventListener("change", () => {
-  $("qaRow").style.display = $("qaCheck").checked ? "" : "none";
-  saveBackendSettings();
-}));
+["specCheck", "qaCheck"].forEach((id) => $(id).addEventListener("change", saveBackendSettings));
 ["model", "textModel", "lightModel", "oaQuality"].forEach((id) => { $(id).addEventListener("change", saveBackendSettings); });
 (function restoreBackend() {
   const st = loadBackendSettings();
@@ -1228,8 +1224,7 @@ $("backend").onchange = () => { applyBackendUI(); saveBackendSettings(); };
   if (st.textEngine === "anthropic") $("textEngine").value = st.textEngine;
   if (st.anthropicModel) $("anthropicModel").value = st.anthropicModel;
   if (st.oaQuality) $("oaQuality").value = st.oaQuality;
-  if (st.qa) { $("specCheck").checked = st.qa.spec !== false; $("qaCheck").checked = st.qa.check !== false; if (st.qa.retry != null) $("qaRetry").value = st.qa.retry; }
-  $("qaRow").style.display = $("qaCheck").checked ? "" : "none";
+  if (st.qa) { $("specCheck").checked = st.qa.spec !== false; $("qaCheck").checked = st.qa.check !== false; }
   applyTextEngineUI();
 })();
 $("savekey").onclick = () => {
@@ -1493,6 +1488,16 @@ function buildPrompt(o) {
   }
   // Describe the attached images by role, in the order they are sent.
   if (nProduct) lines.push(FIDELITY_TEXT[fidelity](imgRange(1, nProduct)));
+  // 참조 사진에 손·모델·소품이 찍혀 있으면 모델이 그대로 따라 그린다. 사람이 나오는 컷이 아니면 못 박는다.
+  if (nProduct && (fidelity === "reshoot" || fidelity === "parts")) {
+    const wantsPerson = scnProp(s, vkey, "shots", "product") === "person" ||
+      /hand|finger|model|person|wear|holding|held|착용|손|모델/i.test(String(o.extra || "") + " " + String(o.subject || ""));
+    lines.push("what belongs to the product vs. what belongs to the photo: the product photo" + (nProduct > 1 ? "s" : "") +
+      " may show a hand, a model, packaging, a mannequin, a stand, or props holding or wearing the product — none of those are part of the product, " +
+      "and none of them carry over into the result." +
+      (wantsPerson ? " A person appears in this image only as the scene description above describes, not copied from the product photo."
+        : " Do NOT put a hand, fingers, arm, or any person in this image; show the product on its own as the scene description says."));
+  }
   if (nStyle) {
     const which = imgRange(nProduct + 1, nProduct + nStyle);
     const noCopy = nProduct
@@ -1723,7 +1728,7 @@ function viewsLine(visible) {
     "this restriction is about which sides of the product may be seen, not about copying the reference photo's angle or distance.";
 }
 async function checkViews(apiKey, backend, request, refs, tag) {
-  const model = $("textModel").value.trim() || currentBackend().defaultTextModel;
+  const model = lightTextModel();
   const raw = await callTextModel(viewCheckPrompt(refs.length, request), apiKey, backend, model, refs, tag || "각도 확인");
   const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
   let j;
@@ -2623,8 +2628,7 @@ async function generateImages(promptText, refs, ratio, tag, size, opts) {
 //  1) 상품 디테일 체크리스트: 사진에서 스트랩 개수·패턴·로고 같은 식별 포인트를
 //     글로 뽑아 프롬프트에 함께 넣는다 (이미지 + 텍스트 이중 지시).
 //  2) 생성 후 일치 검사: 비전 모델이 원본 사진과 결과를 비교해 점수·불일치 항목을 낸다.
-//  3) 자동 수정: 불일치면 처음부터 다시 그리지 않고, 결과 이미지를 원본에 맞게 고치는
-//     편집 요청을 보낸다 (구도·배경은 유지). 끝까지 기준 미달이면 가장 점수 높은 컷을 쓴다.
+//     기준 미달이면 점수와 지적 사항을 보여 주고, 다시 만들지는 않는다(사람이 판단).
 // =====================================================================
 // 통과 기준은 컷 종류마다 다르다: 흰 배경 누끼처럼 제품 전체가 또렷한 컷은 엄격하게,
 // 접사·부분 컷이나 사람이 쓰는 장면처럼 일부만 보이는 컷은 느슨하게 본다.
@@ -2653,7 +2657,8 @@ function cachedSpecLine(prodOrGroups) {
   } catch (e) { return ""; }
 }
 const imgUrlOf = (img) => img.src || ("data:" + img.mime + ";base64," + img.b64);
-const qaTextModel = () => $("textModel").value.trim() || currentBackend().defaultTextModel;
+// 검사·추출처럼 판단이 단순한 일은 가벼운 모델로, 기획처럼 복잡한 일은 텍스트 모델로 나눠 쓴다.
+const qaTextModel = () => lightTextModel();
 // 모델별로 참조 이미지를 이 장수 이하로 넣을 때 가장 정확하다 (Google 문서 기준, 나머지는 넉넉히).
 function refCap(model) {
   if (/gemini-2\.5-flash-image/.test(model)) return 3;
@@ -2727,7 +2732,8 @@ function qaPrompt(gs, q, dets) {
     multi
       ? "Judge each option SEPARATELY: for each one, find the item in the generated image that matches that option's own reference photos in colour and pattern, " +
         "and compare it only with those photos. Never let one option's colours or details count against another."
-      : "",
+      : "This image should contain exactly one product item. If it shows more than one — a second colour, pattern or variant of the same product placed beside it — " +
+        "report that as an issue ('an extra product variant that does not exist was added') and score it below 60, because that variant was invented.",
     "Compare only the product itself. Ignore background, props, people, lighting mood, camera angle, distance, crop, " +
       "and any side of the product that is not visible in the generated image.",
     "Framing is never a mismatch: a close-up, a partial view, a different camera angle, or a different distance from the reference photos is expected and correct. " +
@@ -2777,21 +2783,6 @@ async function qaCheck(gs, url, dets, say) {
   if (multi && miss.length) out.warn = "생성 이미지에서 " + miss.map((n) => "'" + n + "'").join(", ") + " 옵션을 찾지 못했습니다 (빠졌거나 어느 것인지 구분이 안 됨)";
   return out;
 }
-// 수정 요청은 image 1 = 고칠 이미지, 그 뒤로 상품샷. 매핑 번호를 1칸씩 민다.
-function fixPrompt(gs, q, issues, dets) {
-  const shifted = q.map.map((m) => m.replace(/image (\d+)(?:-(\d+))?/, (_, a, b) => "image " + (+a + 1) + (b ? "-" + (+b + 1) : "")));
-  const multi = gs.length > 1 || !!gs[0].name;
-  return [
-    "Edit image 1. Image 1 is a generated product photo; " +
-      (multi ? "the real product options are: " + shifted.join("; ") + "." : shifted[0].replace(/^image/, "image") + " show" + (q.refs.length > 1 ? "" : "s") + " the real product."),
-    "The product" + (gs.length > 1 ? "s" : "") + " in image 1 do" + (gs.length > 1 ? "" : "es") + " not match the real product: " + issues.join("; ") + ".",
-    "Correct the product" + (gs.length > 1 ? "s" : "") + " in image 1 so " + (gs.length > 1 ? "each matches its own option photos" : "it matches the real product") +
-      " exactly — shape, the count and placement of parts, colours, material, texture, pattern, logos, and text.",
-    dets.some((d) => d.length) ? specLineG(gs, dets) : "",
-    "Keep everything else in image 1 identical: composition, camera angle, distance, crop, product position and size, background, lighting, props, and people — " +
-      "do not zoom out or re-frame to show more of the product. Change only the product's wrong details. Do not add any text.",
-  ].filter(Boolean).join("\n");
-}
 // refs의 앞 nProduct장이 상품샷. 결과 {url, prompt, qa?, failed?}.
 // opts: {nProduct, groups?: [{name, refs}] (한 장에 여러 옵션일 때), say(msg)}.
 async function genChecked(promptText, refs, ratio, tag, size, opts) {
@@ -2802,7 +2793,6 @@ async function genChecked(promptText, refs, ratio, tag, size, opts) {
   const gs = (opts.groups && opts.groups.length ? opts.groups : [{ name: "", refs: refs.slice(0, nP) }])
     .map((g) => ({ name: g.name, refs: g.refs.filter((f) => f.b64) })).filter((g) => g.refs.length);
   const wantSpec = $("specCheck").checked, wantQa = $("qaCheck").checked;
-  const retry = parseInt($("qaRetry").value, 10) || 0;
   const model = $("model").value.trim() || currentBackend().defaultModel;
   let dets = gs.map(() => []);
   if (nP && gs.length && (wantSpec || wantQa)) {
@@ -2815,34 +2805,21 @@ async function genChecked(promptText, refs, ratio, tag, size, opts) {
   let url = imgUrlOf((await generateImages(prompt, refs, ratio, tag, size))[0]);
   // https 결과는 캔버스로 읽을 수 없어(교차 출처) 검사하지 않는다.
   if (!nP || !gs.length || !wantQa || !/^data:/.test(url)) return { url, prompt };
-  let best = null;
-  for (let attempt = 0; ; attempt++) {
-    say("상품 일치 검사 중…" + (attempt ? " (자동 수정 " + attempt + "회 후)" : ""));
-    let qa = null;
-    try { qa = await qaCheck(gs, url, dets, say); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
-    if (!qa) return { url, prompt };
-    if (!best || qa.score > best.qa.score) best = { url, qa };
-    if (!qa.visible || qa.score >= pass || !qa.issues.length) return { url, prompt, qa, fixed: attempt, pass };
-    if (attempt >= retry || (opts.shouldStop && opts.shouldStop())) break;
-    say("불일치(" + qa.score + "점 / 기준 " + pass + "점) — 자동 수정 중: " + (qa.issuesKo.length ? qa.issuesKo : qa.issues).join(", "));
-    const q = qaRefsFor(gs.map((g) => ({ name: g.name, refs: g.refs.slice(0, Math.max(1, Math.min(3, refCap(model) - 1))) })));
-    const fixRefs = [Object.assign({ url }, dataUrlToPart(url))].concat(q.refs);
-    url = imgUrlOf((await generateImages(fixPrompt(gs, q, qa.issues, dets), fixRefs, ratio, tag + " · 자동 수정", size))[0]);
-    if (!/^data:/.test(url)) return { url, prompt };
-  }
-  return { url: best.url, prompt, qa: best.qa, failed: true, pass };
+  say("상품 일치 검사 중…");
+  let qa = null;
+  try { qa = await qaCheck(gs, url, dets, say); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
+  if (!qa) return { url, prompt };
+  const ok = !qa.visible || qa.score >= pass || !qa.issues.length;
+  return { url, prompt, qa, pass, failed: !ok };
 }
 // 검토 창에 보여줄 '생성 후 검사(C)' 설명. prod: 이 이미지의 상품샷.
 function qaPlanText(prod, pass) {
   if (!prod || !prod.length) return "생성 후 일치 검사: 상품샷이 없어 건너뜀";
   if (!$("qaCheck").checked) return "생성 후 일치 검사: 꺼짐 (공통 설정에서 켤 수 있어요)";
-  const retry = parseInt($("qaRetry").value, 10) || 0;
   const QA_PASS = pass || 80;
   const gs = asGroups(prod);
   const multi = gs.length > 1 ? "옵션 " + gs.length + "개를 한 번에 검사해 옵션별로 점수를 받고, 가장 낮은 점수를 씁니다. " : "";
-  return multi + "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 " +
-    (retry ? "지적된 부분만 원본처럼 고치는 수정 요청을 최대 " + retry + "회 보냅니다 (구도·배경 유지). 끝까지 미달이면 가장 높은 점수 컷을 쓰고 경고합니다."
-      : "경고만 합니다 (자동 수정 꺼짐).");
+  return multi + "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 경고합니다 (다시 만들지는 않습니다).";
 }
 function qaPromptsPreview(prodOrGroups) {
   const gs = asGroups(prodOrGroups).map((g) => ({ name: g.name, refs: g.refs.filter((f) => f.b64) })).filter((g) => g.refs.length);
@@ -2851,9 +2828,7 @@ function qaPromptsPreview(prodOrGroups) {
   const q = qaRefsFor(gs);
   const multi = gs.length > 1;
   return (multi ? "옵션 " + gs.length + "개를 한 번의 요청으로 검사하고, 옵션마다 점수를 따로 받습니다. 점수는 가장 낮은 옵션 기준입니다.\n\n" : "") +
-    "[일치 검사 프롬프트 — 텍스트 모델에 상품샷 " + q.refs.length + "장 + 생성 이미지와 함께 보냄]\n" + qaPrompt(gs, q, dets) +
-    "\n\n[자동 수정 프롬프트 — 불일치일 때 생성 이미지 + 상품샷과 함께 보냄. <issues>는 검사 결과로 채워짐]\n" +
-    fixPrompt(gs, q, ["<issues>"], dets);
+    "[일치 검사 프롬프트 — 텍스트 모델에 상품샷 " + q.refs.length + "장 + 생성 이미지와 함께 보냄]\n" + qaPrompt(gs, q, dets);
 }
 // 검사 결과를 사람이 읽을 한 줄로.
 function qaNote(r) {
@@ -2863,8 +2838,8 @@ function qaNote(r) {
   if (!q.visible) return "일치 검사: 상품을 확인하지 못해 건너뜀" + warn;
   const iss = (q.issuesKo.length ? q.issuesKo : q.issues).join(", ");
   const each = q.per && q.per.length > 1 ? " (" + q.per.map((p) => "'" + p.name + "' " + (p.found ? p.score + "점" : "못 찾음")).join(" · ") + ")" : "";
-  if (r.failed) return "⚠ 상품 불일치 남음 (" + q.score + "점)" + each + ": " + iss + " — 다시 생성하거나 수정 요청을 해보세요" + warn;
-  return "상품 일치 " + q.score + "점" + each + (r.fixed ? " (자동 수정 " + r.fixed + "회)" : "") + warn;
+  if (r.failed) return "⚠ 상품 불일치 (" + q.score + "점 / 기준 " + (r.pass || QA_PASS) + "점)" + each + ": " + iss + " — 다시 생성하거나 수정 요청을 해보세요" + warn;
+  return "상품 일치 " + q.score + "점" + each + warn;
 }
 
 // =====================================================================
@@ -4021,6 +3996,18 @@ const DP_IMG_TYPES = Object.keys(DP_DEFAULT_SCN);
 const DP_IMG_ALWAYS = ["hero"];
 // 이미지가 그 자리에서 차지할 가로 비율(%). 큰 사진만 이어지면 페이지가 단조로워진다.
 const DP_WIDTHS = [100, 75, 50];
+// 한 장에 제품이 여러 개 나오는 시나리오 — 옵션을 하나만 고르면 모델이 나머지를 지어낸다.
+const DP_MULTI_ITEM_SCN = ["multi-product", "multi-angle-grid", "comparison-chart", "gift-set"];
+// 화각 자체가 시나리오의 정체성인 컷 — 지시문에 "medium distance" 같은 말이 섞여도 이 규칙이 이긴다.
+const DP_FRAMING_RULE = {
+  "detail-macro": "framing rule for this shot, and it overrides any distance or framing wording in the scene direction above: this is a macro close-up. " +
+    "Fill the frame with one small area of the product (the texture, seam, stitch or part named above) — the whole product must NOT fit in the frame, " +
+    "and no medium or wide distance is acceptable here.",
+  "exploded-view": "framing rule: the parts are separated and spread apart so each one is clearly readable; do not show the product assembled.",
+  "flat-lay": "framing rule: a straight top-down view, camera directly above the surface; no perspective from the side.",
+};
+const slotNeedsMoreOptions = (im) => DP_MULTI_ITEM_SCN.includes(im.scenario) &&
+  filledVariants().length > 1 && (slotOptionGroups(im) || []).length < 2;
 // closing is text-only from the model (parsePlan strips it); the seller can still add
 // one by hand, and drafts that already have one keep it.
 // grid/steps/compare/faq/spec are read, not looked at, so a stray image there is dropped.
@@ -4379,7 +4366,7 @@ function skillSystemPrompt() {
 const SKILL_LABEL = "ecommerce-visual-copywriting 스킬 원문(영어 번역) " + SKILL_FILES.length + "개 파일";
 
 // optionNames: option (color/variant) names, when the seller uploaded option photos.
-function skillRequest(name, info, tone, count, nImages, optionNames, extra, types, mainName, optPhotos) {
+function skillRequest(name, info, tone, count, nImages, optionNames, extra, types, mainName, optPhotos, spec) {
   const picked = (types && types.length ? types : DP_PICKABLE.filter((x) => x[2]).map((x) => x[0]));
   const kinds = { feature: "feature benefits", detail: "material / finish close-ups", wear: "worn / in-use shots", grid: "benefit summary",
     steps: "how to use", compare: "comparison", faq: "FAQ", spec: "specifications" };
@@ -4398,6 +4385,11 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
     "[Language] Write the deliverable in Korean — the seller reads Korean and all page copy is Korean. Keep image-generation prompts in English, as the Skill specifies.",
     "[Platform / market] Korean e-commerce (Naver SmartStore, Coupang, brand mall), Korea. Mobile, vertical-scroll detail page.",
     "[Web access] None in this session — you cannot verify current platform rules online.",
+    "[Image-generation prompts] Write each module's image-generation prompt like a shot list for a photographer, grounded in what the product photos actually show: " +
+      "camera height and angle, distance and crop, where the product sits in the frame and how much empty space is around it, the surface it rests on, " +
+      "one or two supporting props at most, the direction and quality of the light and the shadow it throws, and the one detail that must be sharpest. " +
+      "Vary camera height, distance and light direction from module to module so the page has rhythm. " +
+      "Avoid catch-all sentences like 'close-up of the product with bright lighting' — they fit any product and produce flat images.",
     "[How the page will be built] A web tool renders the page: in-image copy is placed as live HTML text next to or over each module's photo, " +
       "and each module's photo is made by an image-generation model from your image-generation prompt. So the photos themselves carry no text, logos or badges.",
     "",
@@ -4405,6 +4397,8 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
     "[Product materials]",
     info || "(not given — use only what is visible in the photos)",
     ...(photoLines.length ? ["[Photos]", ...photoLines] : []),
+    ...((spec && spec.length) ? ["[What the photos show — read off the product shots, use as evidence, do not contradict it]",
+      ...spec.map((x) => "- " + x)] : []),
     ...(opts ? ["[Options] This product has options (color / type): " + opts.join(", ") +
       ". The page gets an options module automatically (one generated shot per option); refer to the options by these names." +
       (mainName ? " The seller chose '" + mainName + "' as the main product: by default every module photo shows this option." : " By default every module photo shows the main product.") +
@@ -4491,6 +4485,15 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "image 옮기기:",
     "- 카드에 사진이 있는 모듈은 image(또는 images)를 넣고, 사진이 없는 모듈은 넣지 마라. 카드를 그대로 따르면 된다(hero는 늘 사진이 있다).",
     "- image = {scenario, variant, ratio, note, direction}. 카드의 사진이 여러 장이면 image 대신 images: [ {...}, {...} ] (최대 3장)와 imageLayout(\"row\" 같은 크기로 나란히 / \"mosaic\" 첫 장 크게)을 쓴다.",
+    "- direction은 실제로 촬영 지시서처럼 구체적으로 써라. 매번 다음을 담아라: " +
+      "① 카메라 높이와 각도(눈높이, 45도 내려보기, 로우앵글 등)와 거리·크롭, " +
+      "② 제품이 프레임에서 놓이는 위치와 여백, " +
+      "③ 놓인 면·바닥의 재질, ④ 곁들이는 소품 1~2개(있으면), " +
+      "⑤ 빛의 방향·질감(창가 측광, 부드러운 확산광 등)과 그림자, ⑥ 이 컷에서 가장 또렷해야 할 한 부분.",
+    "  \"제품 클로즈업, 밝은 조명\" 같은 뭉뚱그린 문장은 쓰지 마라 — 그런 지시는 어느 상품에나 들어맞고, 결과도 밋밋해진다.",
+    "  **거리·화각은 고른 scenario와 어긋나면 안 된다**: 디테일 접사(detail-macro)면 \"extreme close-up\"처럼 아주 가까이(제품 전체가 프레임에 안 들어올 만큼) 적고, " +
+      "\"medium distance\" 같은 말은 쓰지 마라. 전체 모습이 필요하면 접사 대신 다른 scenario를 골라라.",
+    "  컷마다 카메라 높이·거리·빛의 방향을 서로 다르게 잡아 페이지에 리듬을 만들어라.",
     "- direction: 카드의 '이미지 생성 프롬프트'(Image-generation Prompt)를 영어로 옮긴다. 이 편집기는 글자를 HTML로 얹으므로 프롬프트 안의 글자·문구·로고·배지·콜아웃 지시만 빼고 나머지는 그대로 둔다.",
     ...(optionNames && optionNames.length ? [
       "  이 상품은 옵션(색상/종류)이 여러 개다: direction에 **상품 자체의 색·패턴**은 쓰지 마라(색 이름을 붙인 제품 표현 X, 색 없는 제품 표현 O). " +
@@ -4506,6 +4509,7 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "- ratio는 \"4:5\", \"1:1\", \"3:4\", \"4:3\", \"16:9\" 중 카드의 구도에 맞는 것 (hero는 4:5 권장).",
     "- width: 이 사진이 그 자리에서 차지할 가로 비율 — 100(칸 전체) / 75 / 50 중 하나. 카드의 '디자인 설명'과 그 사진의 역할에 맞춰 정해라.",
     "  큰 사진만 이어지면 페이지가 단조로워진다: 첫인상을 만드는 컷과 장면 컷은 100, 보조 설명 컷은 75, 작은 디테일·소품 컷은 50처럼 섞어라.",
+    "  사진이 3장 이상인 페이지에서 전부 100으로 두지 마라 — 적어도 한 자리는 75나 50으로 낮춰 리듬을 만들어라.",
     ...(nImages + (optPhotos || []).reduce((a, o) => a + o.count, 0) > 1 ? [
       "- photos (선택): 이 사진을 만들 때 쓸 상품샷 고르기.",
       ...(nImages > 1 ? ["  · 배열로 적으면 주상품 묶음의 사진 번호다: [1, 3] — 앞의 주상품 상품샷 " + nImages + "장 안에서의 번호" +
@@ -4525,6 +4529,10 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     ...(opts ? [
       "- options: 이 사진에 나올 옵션 이름 배열. 고를 수 있는 이름: " + opts.map((o) => "\"" + o + "\"").join(", ") + " (글자 그대로).",
       "  **사진(images 안의 각 항목)마다 반드시 적어라.** 주상품만 나오는 컷도 생략하지 말고 그 옵션 이름을 적는다 — 어느 옵션으로 만드는지가 늘 드러나야 한다.",
+      "  **multi-product(다중 상품 세트)·multi-angle-grid·comparison-chart·gift-set처럼 제품이 여러 개 나오는 시나리오를 골랐으면 options에 2개 이상 적어라.** " +
+        "한 옵션만 보여줄 자리면 그런 시나리오를 고르지 말고 대표이미지·연출컷 같은 단일 제품 시나리오를 써라.",
+      "  **한 사진에 옵션이 둘 이상 함께 나오는 연출(컬러 라인업, 옵션 비교, 나란히 놓기)이면 options에 그 옵션을 모두 적어라.** " +
+        "하나만 적으면 나머지는 사진이 없어서 모델이 지어내고, 실제와 다른 제품이 그려진다. 반대로 한 개만 적었으면 지시문도 한 개만 나오게 써라.",
       "  사진마다 그 장면에 가장 어울리는 옵션을 골라라 — 주상품을 기본으로 반복하지 마라. 옵션이 여럿이면 사진마다 나눠 쓰고, " +
         "여러 색·종류를 한 장에 함께 보여주는 컷(컬러 라인업, 옵션 비교)도 최소 한 장은 넣는 게 좋다." +
         (mainName ? " 판매자가 고른 주상품은 '" + mainName + "'이니 대표컷 같은 핵심 자리에는 이 옵션을 쓰고, 나머지는 장면에 맞게 나눠라." : ""),
@@ -4555,6 +4563,12 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "  align: \"center\"(가운데 정렬) / \"left\"(왼쪽 정렬) · radius: \"none\"(각진 사진·카드) / \"soft\"(살짝 둥글게) / \"round\"(둥글게)",
     "  space: \"compact\"(섹션 위아래 여백 좁게) / \"normal\" / \"airy\"(넓게) · weight: \"light\"(제목 가볍게) / \"bold\" / \"heavy\"(아주 굵게)",
     "",
+    "JSON을 내놓기 전 스스로 확인할 것 (어긋난 게 있으면 그 자리에서 고쳐라):",
+    "- 각 이미지의 scenario와 direction이 **같은 화각**을 말하는가? (접사 scenario에 \"medium distance\"·\"full product\" 같은 말이 남아 있으면 안 된다)",
+    "- 제품이 여러 개 나오는 scenario를 골랐다면 options가 2개 이상인가? 반대로 options가 하나면 direction도 제품 하나만 말하는가?",
+    "- direction에 상품 자체의 색·패턴 이름이 남아 있지 않은가? (옵션이 여러 개인 상품일 때)",
+    "- 같은 컷에 ratio·width·place가 서로 맞는가? (좁은 자리에 넓은 원거리 컷을 넣지 마라)",
+    "",
     "최상위 필드:",
     "- concept: {name: 컨셉 이름(한국어, 짧게 — 기획서에 있으면 그대로), driver: 주 구매 동력(기획서 그대로), summary: 타깃·Top 3 구매 이유 한두 문장(한국어)}",
     "- product_en: 이미지 생성용 영어 상품 묘사 한 문장 (스타일 락의 '제품 정체성' 기준: 외형, 색, 소재, 용기, 용량)" +
@@ -4571,7 +4585,7 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "출력 예: {\"concept\":{\"name\":\"...\",\"driver\":\"...\",\"summary\":\"...\"},\"product_en\":\"...\"," + (nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") +
       "\"style\":{\"layout\":\"classic\",\"tokens\":{\"align\":\"left\",\"radius\":\"none\"},\"accent\":\"#2F5D50\",\"visual\":\"...\"},\"negative\":\"...\"," +
       "\"sections\":[{\"module\":\"M1\",\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"width\":100,\"note\":\"...\",\"direction\":\"...\"" + (opts ? ",\"options\":[" + (mainName ? "\"" + mainName + "\"" : "") + "]" : "") + "}}," +
-      "{\"module\":\"M2\",\"type\":\"wear\",\"place\":\"above\",\"bg\":\"alt\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\",\"match\":\"M2\"}]}]}",
+      "{\"module\":\"M2\",\"type\":\"wear\",\"place\":\"above\",\"bg\":\"alt\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"width\":75,\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"width\":75,\"note\":\"...\",\"direction\":\"...\",\"match\":\"M2\",\"matchMode\":\"scene\"}]}]}",
   ];
 }
 
@@ -4852,11 +4866,30 @@ $("dpStoryText").addEventListener("input", () => { if (dstory) { dstory.text = $
 $("dpStoryEdit").onclick = () => { storyEditing = !storyEditing; renderStory(); };
 
 // 1단계: 스킬(표준 모드) → 전략·근거 목록 + 스토리보드.
+// 기획 전에 상품샷에서 디테일을 뽑아 기획 모델에 함께 넘긴다. 같은 결과를 이미지 생성 때도
+// 캐시로 재사용하므로 호출 수는 늘지 않는다 (나중에 할 일을 앞으로 당기는 것).
+async function planProductSpec(groups) {
+  if (!$("specCheck").checked || !$("apikey").value.trim()) return [];
+  const sets = [{ name: "", refs: mainProductRefs() }]
+    .concat(groups.filter((g) => g.refs !== mainProductRefs()).map((g) => ({ name: g.name.trim() || "옵션", refs: g.refs })));
+  const out = [];
+  for (const g of sets) {
+    const refs = g.refs.filter((f) => f.b64);
+    if (!refs.length) continue;
+    try {
+      const d = await productSpec(refs);
+      if (d.length) out.push((g.name ? "'" + g.name + "' option: " : "") + d.join("; "));
+    } catch (e) { /* 없으면 없는 대로 기획한다 */ }
+  }
+  return out;
+}
 async function makeStoryboard(apiKey, name, info, auto) {
   const { backend, model } = planModel();
   const { groups, images, nMain, optPhotos, mainName } = planPhotos();
+  setDStatus("상품샷에서 디테일 읽는 중…");
+  const spec = await planProductSpec(groups);
   const request = skillRequest(name, info, DP_TONES[$("dTone").value] || DP_TONES.auto, $("dCount").value, nMain,
-    groups.map((g) => g.name.trim() || "옵션"), $("dExtra").value.trim(), pickedTypes(), mainName, optPhotos);
+    groups.map((g) => g.name.trim() || "옵션"), $("dExtra").value.trim(), pickedTypes(), mainName, optPhotos, spec);
   const text = await callTextModel(request, apiKey, backend, model, images, "상세페이지 1단계 · 스토리보드", skillOpts([]));
   dstory = { turns: [{ role: "user", text: request }], text: text.trim(), auto, nImages: images.length, mainName };
   $("dpStoryNote").value = "";
@@ -5152,7 +5185,9 @@ async function reviewPrompts() {
            optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""]
         : [slotAttachText(s.images[slot]), dpStyleRefs(s, slot).length ? "톤 참조 1장" : "",
            pendingToneRef(s, slot) ? "톤 참조: " + pendingToneRef(s, slot) + " (아직 생성 전 — 그 컷을 만든 뒤 함께 첨부되고, 색감을 맞추라는 문구도 프롬프트에 붙습니다)" : ""];
-      att.textContent = "첨부: " + parts.filter(Boolean).join(" · ");
+      att.textContent = "첨부: " + parts.filter(Boolean).join(" · ") +
+        (!it && slotNeedsMoreOptions(s.images[slot])
+          ? " · ⚠ 이 시나리오는 제품을 여러 개 함께 보여줍니다 — 옵션을 2개 이상 고르지 않으면 나머지를 모델이 지어냅니다" : "");
       const ta = document.createElement("textarea");
       ta.value = text;
       ta.oninput = () => { ta.dataset.edited = "1"; };   // 직접 고친 칸은 자동 갱신하지 않는다
@@ -5602,6 +5637,15 @@ function renderTools(s, i) {
       DP_WIDTHS.forEach((v) => { const o = document.createElement("option"); o.value = String(v); o.textContent = "폭 " + v + "%"; wsel.appendChild(o); });
       wsel.value = String(im.width || 100);
       wsel.onchange = () => { im.width = parseInt(wsel.value, 10); saveDetailSoon(); renderDetail(); };
+      // 시나리오는 여러 개를 요구하는데 옵션을 하나만 골랐으면, 나머지를 모델이 지어낸다.
+      let warnChip = null;
+      if (slotNeedsMoreOptions(im)) {
+        warnChip = document.createElement("span");
+        warnChip.className = "qa-badge bad";
+        warnChip.textContent = "⚠ 옵션 2개 이상";
+        warnChip.title = "이 시나리오는 제품을 여러 개 함께 보여주는 컷입니다. 옵션을 하나만 고르면 나머지 제품을 모델이 지어냅니다. " +
+          "옵션을 2개 이상 고르거나, 한 개만 보여줄 시나리오(대표이미지·연출컷 등)로 바꾸세요.";
+      }
       const qaBadge = im.qa && dimgs[key] ? document.createElement("span") : null;
       if (qaBadge) {
         qaBadge.className = "qa-badge" + (im.qa.failed ? " bad" : "");
@@ -5629,6 +5673,7 @@ function renderTools(s, i) {
         r.appendChild(picker);
       }
       r.appendChild(ratio); r.appendChild(wsel); r.appendChild(size);
+      if (warnChip) r.appendChild(warnChip);
       if (qaBadge) r.appendChild(qaBadge);
       r.appendChild(brk()); r.appendChild(dir);
       r.appendChild(toolButton(busy ? "생성 중…" : (dimgs[key] ? "다시 생성" : "이미지 생성"),
@@ -6113,7 +6158,8 @@ function slotOptionLine(im) {
   const map = gs.map((g) => { const n = groupRefs(g).length; const r = imgRange(i, i + n - 1); i += n; return r + " = the '" + g.name + "' option"; });
   if (gs.length === 1) {
     return "this image shows the '" + gs[0].name + "' option of the product (" + map[0] + "); its colour, pattern, material, and finish come ONLY from " +
-      "its photo(s); " + OPTION_COLOR_OVERRIDE;
+      "its photo(s). Show this ONE option only: exactly one product item, and never invent a second colour, pattern or variant of it to put beside it — " +
+      "if the scene direction above asks for several options side by side, ignore that part and show only this one. " + OPTION_COLOR_OVERRIDE;
   }
   return "options in this image: " + map.join("; ") + ". Show all " + gs.length + " options together in this one image (arranged as the scene direction says), " +
     "each as a separate item whose colour, pattern, print, material, and finish are copied exactly from its own photo(s) — they share the same shape and construction, " +
@@ -6183,6 +6229,7 @@ function autoSectionPrompt(s, k) {
   return [
     buildPrompt({ s: scn, vkey: im.variant || "", subject: dplan.product_en || $("dName").value.trim(), extra, nProduct, nStyle }),
     nProduct && dplan.product_views.length && usesViewLine(scn, im.variant || "") ? viewsLine(dplan.product_views) : "",
+    DP_FRAMING_RULE[im.scenario] || "",
     slotOptionLine(im),
     otherOptionsLine(others, nProduct + nStyle + 1, nProduct),
     notesLine(st.adjust || []),
@@ -6276,7 +6323,7 @@ function autoOptionPrompt(s, k) {
   ].filter(Boolean).join("\n");
 }
 
-// opts가 있으면 상품 충실도 보강(디테일 추출·일치 검사·자동 수정)을 거친다: {nProduct, say, onDone(result)}.
+// opts가 있으면 상품 충실도 보강(디테일 추출·일치 검사)을 거친다: {nProduct, say, onDone(result)}.
 async function genImageUrl(promptText, refs, ratio, tag, size, opts) {
   if (opts && opts.nProduct) {
     const r = await genChecked(promptText, refs, ratio, tag, size, opts);
@@ -6357,8 +6404,8 @@ async function dpNeutralizeDirection(s, k) {
     "",
     'JSON만 출력해라: {"direction": "<고친 영어 지시문>"}',
   ].join("\n");
-  const { backend, model } = planModel();
-  const raw = await callTextModel(ask, apiKey, backend, model, [], "이미지 지시 색 빼기");
+  const { backend } = planModel();
+  const raw = await callTextModel(ask, apiKey, backend, lightTextModel(), [], "이미지 지시 옵션 맞추기");
   const j = parseJsonLoose(raw);
   const out = j && typeof j.direction === "string" ? j.direction.trim() : "";
   if (!out) throw new Error("고친 지시문을 받지 못했습니다.");
@@ -6424,7 +6471,7 @@ function emptyImageJobs() {
 // Generate all empty images; after the first one, ask whether the look is right.
 // Adjustments typed there are kept in dplan.style.adjust and apply to every later image.
 // 빈 이미지 일괄 생성 중단: 이미 보낸 요청은 서버에서 비용이 나가므로 끊지 않고,
-// 지금 이미지까지만 받고(남은 자동 수정은 건너뜀) 다음 이미지로 넘어가지 않는다.
+// 지금 이미지까지만 받고 다음 이미지로 넘어가지 않는다.
 const dpRun = { active: false, stop: false };
 function dpRunUI(text) {
   const bar = $("dpRunBar"), gen = $("dpGenAll"), stopBtn = $("dpRunStop");
