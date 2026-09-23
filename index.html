@@ -141,6 +141,14 @@ dialog.dlg::backdrop { background: rgba(0,0,0,0.45); }
 .sec-opts em { font-style: normal; opacity: .75; }
 .sec-shots img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
 .sec-shots label { gap: 4px; }
+.shotgrp { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 999px; }
+.shotgrp.on { border-color: var(--accent); }
+.shotgrp .grpname { font-weight: 600; }
+.shotgrp:not(.on) img { opacity: .4; }
+.shotgrp.implied { border-style: dashed; border-color: var(--accent); }
+.shotgrp.implied img { opacity: .75; }
+.shotgrp.implied em { font-size: 11px; opacity: .8; }
+.rvfix { width: auto; padding: 5px 10px; font-size: 12.5px; }
 .runbar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 10px;
   max-width: calc(100vw - 32px); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 13.5px; }
@@ -149,6 +157,7 @@ dialog.dlg::backdrop { background: rgba(0,0,0,0.45); }
 .runbar .spin { margin-right: 0; flex: none; }
 .runbar button { width: auto; padding: 6px 14px; font-size: 13px; border-radius: 999px; flex: none; }
 #dpGenAll.stop { border-color: var(--accent); color: var(--accent); }
+.rvopts { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 6px; }
 .rvatt { font-size: 12.5px; color: var(--ink-soft); margin: 2px 0 6px; }
 .rvqa { margin: 6px 0 4px; font-size: 12.5px; color: var(--ink-soft); }
 .rvqa summary { cursor: pointer; line-height: 1.5; }
@@ -345,6 +354,8 @@ button.mini { padding: 3px 9px; font-size: 12px; border-radius: 6px; }
 .sec-tools .sec-type { font-weight: 700; color: var(--ink-soft); margin-right: 2px; }
 .sec-tools .sec-note { flex: 1 1 100%; order: -1; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
 .sec-tools .sec-note b { color: var(--ink); font-weight: 600; }
+.qa-badge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); white-space: nowrap; cursor: help; }
+.qa-badge.bad { border-color: #c0392b; color: #c0392b; font-weight: 600; }
 .sec-tools .sec-px { color: var(--ink-soft); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .secpick { display: flex; flex-wrap: wrap; gap: 6px 10px; }
 .secpick label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
@@ -1404,7 +1415,9 @@ const FIDELITY_TEXT = {
     "every seam, stitch, strap, buckle, hole, ridge, groove, pattern, and edge in the same place, size, and count; " +
     "logos, labels, and printed text exactly as shown (same spelling, font, size, and position). " +
     "Do NOT redesign, simplify, stylize, idealize, add, remove, or 'improve' any part of the product. " +
-    "Only the viewing angle and scene lighting may change, and the product must still look like the same item photographed again. " +
+    "Fidelity means the same physical object, not the same photograph: the camera angle, distance, crop, and scene lighting come from the scene description above, " +
+    "not from this photo. Re-photograph the product for this scene — move in close, crop into it, or change the viewing angle as the scene asks, " +
+    "as long as it is still recognisably the same item. Copying this photo's framing or distance is a failed result. " +
     "Ignore everything else in this photo: any person, their pose, anything they wear or hold that is not the product, background, floor, props, lighting, and framing must NOT be carried over",
   parts: (imgs) => "product photo (" + imgs + "): the exact physical product being sold. Reproduce every part with its exact real shape, proportions, colors, " +
     "material, texture, logos, labels, and printed text. The product may be shown disassembled, opened, or with parts moved ONLY as the instructions above describe; " +
@@ -1428,8 +1441,9 @@ const FIDELITY_PRIORITY = {
   reshoot: "TOP PRIORITY — product fidelity: the product in the result must be an exact match of the product photo " +
     "in every detail (shape, color, material, texture, structure, logos, text). If any instruction above conflicts " +
     "with keeping the product identical, keep the product identical. This applies to the PRODUCT ONLY — the scene, " +
-    "background, surface, props, framing and lighting must come from the scene description above, never from the " +
-    "product photo. Returning the product photo unchanged, or with only its background removed, is a failed result.",
+    "background, surface, props, camera angle, distance, crop, framing and lighting must come from the scene description above, never from the " +
+    "product photo. Matching the product photo's angle, distance or crop is NOT what fidelity means; returning the product photo unchanged, " +
+    "or with only its background removed, is a failed result.",
   parts: "TOP PRIORITY — product fidelity: every part of the product must match the product photo exactly (shape, color, material, texture, logos, text); " +
     "the only allowed change is the separation or movement described above.",
   "scene-edit": "TOP PRIORITY — the product must stay pixel-identical to the product photo (angle, shape, color, logos, text); only its surroundings change.",
@@ -1703,8 +1717,10 @@ async function checkViewsCached(apiKey, backend, request, refs, tag) {
 function viewsLine(visible) {
   const hidden = VIEWS.filter((v) => !visible.includes(v));
   return "verified product views: the product photos only show its " + visible.join(", ") + " side(s). " +
-    "Show the product only from these sides" +
-    (hidden.length ? "; never show its " + hidden.join(", ") + " side(s), because their real details are unknown." : ".");
+    "Keep the visible side(s) to these" +
+    (hidden.length ? "; never show its " + hidden.join(", ") + " side(s), because their real details are unknown. " : ". ") +
+    "Within them the camera is free: tilt, rotate slightly, move closer or farther, and crop into a part of the product as the scene asks — " +
+    "this restriction is about which sides of the product may be seen, not about copying the reference photo's angle or distance.";
 }
 async function checkViews(apiKey, backend, request, refs, tag) {
   const model = $("textModel").value.trim() || currentBackend().defaultTextModel;
@@ -2388,13 +2404,18 @@ async function httpError(resp, extraMsgs) {
 }
 // 1st try: key in header. 2nd try: key in query string (some proxies
 // strip custom headers, and this also avoids the preflight header).
+// 텍스트 요청(구성·카피·검사)을 중간에 끊기 위한 신호. 구성 단계에서만 켠다.
+let textAbort = null;
+const abortSig = () => (textAbort ? textAbort.signal : undefined);
+const isAbort = (e) => String((e && e.name) || "") === "AbortError" || /aborted|abort/i.test(String((e && e.message) || ""));
 async function geminiFetch(url, apiKey, body) {
   const attempts = [
     { u: url, h: { "Content-Type": "application/json", "x-goog-api-key": apiKey } },
     { u: url + "?key=" + encodeURIComponent(apiKey), h: { "Content-Type": "application/json" } },
   ];
   for (const a of attempts) {
-    try { return await fetch(a.u, { method: "POST", headers: a.h, body: JSON.stringify(body) }); } catch (e) {}
+    try { return await fetch(a.u, { method: "POST", headers: a.h, body: JSON.stringify(body), signal: abortSig() }); }
+    catch (e) { if (isAbort(e)) throw e; }
   }
   throw new Error(GEMINI_NET_ERR);
 }
@@ -2605,7 +2626,15 @@ async function generateImages(promptText, refs, ratio, tag, size, opts) {
 //  3) 자동 수정: 불일치면 처음부터 다시 그리지 않고, 결과 이미지를 원본에 맞게 고치는
 //     편집 요청을 보낸다 (구도·배경은 유지). 끝까지 기준 미달이면 가장 점수 높은 컷을 쓴다.
 // =====================================================================
-const QA_PASS = 80;
+// 통과 기준은 컷 종류마다 다르다: 흰 배경 누끼처럼 제품 전체가 또렷한 컷은 엄격하게,
+// 접사·부분 컷이나 사람이 쓰는 장면처럼 일부만 보이는 컷은 느슨하게 본다.
+const QA_PASS = 80;                 // 기본
+const QA_PASS_BY_SCN = {
+  "hero-image": 85, "transparent-cutout": 85, "multi-angle-grid": 85, "ghost-mannequin": 85, "packaging": 85,
+  "detail-macro": 70, "texture-fabric": 70, "exploded-view": 70,
+  "model-showcase": 75, "try-on-virtual": 75, "lifestyle-scene": 75, "livestream": 75, "magazine-editorial": 75,
+};
+const qaPassFor = (scnId) => QA_PASS_BY_SCN[scnId] || QA_PASS;
 const specCache = new Map();   // 상품샷 묶음 -> Promise<[디테일...]>
 const specDone = new Map();    // 상품샷 묶음 -> [디테일...] (추출이 끝난 것만 — 프롬프트 미리보기용)
 const SPEC_MARK = "exact product details to reproduce";
@@ -2637,7 +2666,7 @@ function specPrompt(n) {
   return [
     "Image" + (n > 1 ? "s 1-" + n + " are photos" : " 1 is a photo") + " of one real product for sale.",
     "List the concrete visual details that a copy of this product must get right to look identical to it. Cover, where visible: " +
-      "overall shape and proportions; the count and placement of distinct parts (e.g. straps, tabs, buttons, holes, panels); " +
+      "overall shape and proportions; the count and placement of every distinct part this product has; " +
       "the exact colour of each part (colour name + approximate hex); material, surface texture, and any repeating pattern (its shape, size, and spacing); " +
       "logos, printed text, and labels (exact spelling and position); hardware, stitching, and edges.",
     "Describe only what is clearly visible; never guess hidden sides.",
@@ -2660,13 +2689,15 @@ async function productSpec(prod) {
   }
   return specCache.get(sig);
 }
+const SPEC_TAIL = ". These describe the whole product: only the parts actually inside this shot's framing have to match — " +
+  "if this is a close-up or a partial view, keep it close and do not widen the shot to fit every detail in.";
 const specLine = (d) => SPEC_MARK + ", checked against the product photos — get every one of them right: " +
-  d.map((x, i) => (i + 1) + ") " + x).join("; ");
+  d.map((x, i) => (i + 1) + ") " + x).join("; ") + SPEC_TAIL;
 // 옵션이 여럿이면 옵션별로 나눠 적는다.
 function specLineG(gs, dets) {
   if (gs.length === 1 && !gs[0].name) return specLine(dets[0] || []);
   return SPEC_MARK + " for each option, checked against its own photos — get every one of them right: " +
-    gs.map((g, i) => "'" + g.name + "' option: " + ((dets[i] || []).map((x, j) => (j + 1) + ") " + x).join("; ") || "(see its photo)")).join(" | ");
+    gs.map((g, i) => "'" + g.name + "' option: " + ((dets[i] || []).map((x, j) => (j + 1) + ") " + x).join("; ") || "(see its photo)")).join(" | ") + SPEC_TAIL;
 }
 // 검사·수정에 보낼 상품샷: 옵션마다 골고루, 합쳐 최대 4장. 매핑 문구도 함께.
 function qaRefsFor(gs) {
@@ -2697,8 +2728,10 @@ function qaPrompt(gs, q, dets) {
       ? "Judge each option SEPARATELY: for each one, find the item in the generated image that matches that option's own reference photos in colour and pattern, " +
         "and compare it only with those photos. Never let one option's colours or details count against another."
       : "",
-    "Compare only the product itself. Ignore background, props, people, lighting mood, camera angle, crop, " +
+    "Compare only the product itself. Ignore background, props, people, lighting mood, camera angle, distance, crop, " +
       "and any side of the product that is not visible in the generated image.",
+    "Framing is never a mismatch: a close-up, a partial view, a different camera angle, or a different distance from the reference photos is expected and correct. " +
+      "Judge only the part of the product that is visible, and never lower the score because the shot is zoomed in, cropped, or taken from another angle.",
     "Check shape and proportions, the count and placement of parts, colours, material/texture/pattern, logos and text, hardware and stitching.",
     dets.some((d) => d.length)
       ? "Key details, per option — check each one against its own list only:\n" +
@@ -2709,7 +2742,8 @@ function qaPrompt(gs, q, dets) {
       '"issues": ["<each concrete mismatch in English>"], "issues_ko": ["<the same issues as short Korean phrases>"]}').join(", ") + ']}',
     'Give one entry per option, in that order. Set "found": false when that option does not appear in the generated image at all, ' +
       "or when you cannot tell which item it is — do not guess; leave its score at 0 and its issues empty.",
-    "Give 85 or more only if a customer would accept it as the same product; list every mismatch you see, and none if there are none.",
+    "Score on what is visible in this shot: a close-up or partial view is judged only on the part it shows, never penalised for what it leaves out. " +
+      "Give a high score only if a customer would accept it as the same product; list every mismatch you see, and none if there are none.",
   ].filter(Boolean).join("\n");
 }
 // 한 번 불러서 옵션별 결과를 받는다. 점수는 가장 낮은 옵션 기준 (한 옵션만 틀려도 못 쓰는 컷이라).
@@ -2754,8 +2788,8 @@ function fixPrompt(gs, q, issues, dets) {
     "Correct the product" + (gs.length > 1 ? "s" : "") + " in image 1 so " + (gs.length > 1 ? "each matches its own option photos" : "it matches the real product") +
       " exactly — shape, the count and placement of parts, colours, material, texture, pattern, logos, and text.",
     dets.some((d) => d.length) ? specLineG(gs, dets) : "",
-    "Keep everything else in image 1 identical: composition, camera angle, product position and size, background, lighting, props, and people. " +
-      "Change only the product's wrong details. Do not add any text.",
+    "Keep everything else in image 1 identical: composition, camera angle, distance, crop, product position and size, background, lighting, props, and people — " +
+      "do not zoom out or re-frame to show more of the product. Change only the product's wrong details. Do not add any text.",
   ].filter(Boolean).join("\n");
 }
 // refs의 앞 nProduct장이 상품샷. 결과 {url, prompt, qa?, failed?}.
@@ -2763,6 +2797,7 @@ function fixPrompt(gs, q, issues, dets) {
 async function genChecked(promptText, refs, ratio, tag, size, opts) {
   opts = opts || {};
   const say = opts.say || (() => {});
+  const pass = opts.pass || QA_PASS;
   const nP = opts.nProduct || 0;
   const gs = (opts.groups && opts.groups.length ? opts.groups : [{ name: "", refs: refs.slice(0, nP) }])
     .map((g) => ({ name: g.name, refs: g.refs.filter((f) => f.b64) })).filter((g) => g.refs.length);
@@ -2787,21 +2822,22 @@ async function genChecked(promptText, refs, ratio, tag, size, opts) {
     try { qa = await qaCheck(gs, url, dets, say); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
     if (!qa) return { url, prompt };
     if (!best || qa.score > best.qa.score) best = { url, qa };
-    if (!qa.visible || qa.score >= QA_PASS || !qa.issues.length) return { url, prompt, qa, fixed: attempt };
+    if (!qa.visible || qa.score >= pass || !qa.issues.length) return { url, prompt, qa, fixed: attempt, pass };
     if (attempt >= retry || (opts.shouldStop && opts.shouldStop())) break;
-    say("불일치(" + qa.score + "점) — 자동 수정 중: " + (qa.issuesKo.length ? qa.issuesKo : qa.issues).join(", "));
+    say("불일치(" + qa.score + "점 / 기준 " + pass + "점) — 자동 수정 중: " + (qa.issuesKo.length ? qa.issuesKo : qa.issues).join(", "));
     const q = qaRefsFor(gs.map((g) => ({ name: g.name, refs: g.refs.slice(0, Math.max(1, Math.min(3, refCap(model) - 1))) })));
     const fixRefs = [Object.assign({ url }, dataUrlToPart(url))].concat(q.refs);
     url = imgUrlOf((await generateImages(fixPrompt(gs, q, qa.issues, dets), fixRefs, ratio, tag + " · 자동 수정", size))[0]);
     if (!/^data:/.test(url)) return { url, prompt };
   }
-  return { url: best.url, prompt, qa: best.qa, failed: true };
+  return { url: best.url, prompt, qa: best.qa, failed: true, pass };
 }
 // 검토 창에 보여줄 '생성 후 검사(C)' 설명. prod: 이 이미지의 상품샷.
-function qaPlanText(prod) {
+function qaPlanText(prod, pass) {
   if (!prod || !prod.length) return "생성 후 일치 검사: 상품샷이 없어 건너뜀";
   if (!$("qaCheck").checked) return "생성 후 일치 검사: 꺼짐 (공통 설정에서 켤 수 있어요)";
   const retry = parseInt($("qaRetry").value, 10) || 0;
+  const QA_PASS = pass || 80;
   const gs = asGroups(prod);
   const multi = gs.length > 1 ? "옵션 " + gs.length + "개를 한 번에 검사해 옵션별로 점수를 받고, 가장 낮은 점수를 씁니다. " : "";
   return multi + "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 " +
@@ -3577,7 +3613,7 @@ $("go").onclick = async () => {
       ].filter(Boolean).join("\n");
       const refs = st.refs.concat(styleRefs);
       const tag = label + (st.name ? " · " + st.name : "") + (shots.length > 1 ? " · " + (i + 1) + "/" + shots.length : "");
-      const r = await genChecked(p, refs, ratio, tag, null, { nProduct: st.refs.length,
+      const r = await genChecked(p, refs, ratio, tag, null, { nProduct: st.refs.length, pass: qaPassFor(s.id),
         say: (m) => { btn.innerHTML = '<span class="spin"></span>' + m + " (" + (j + 1) + "/" + jobs.length + ")"; } });
       const qn = qaNote(r);
       if (qn) qaNotes.push((jobs.length > 1 ? (j + 1) + "번: " : "") + qn);
@@ -3921,6 +3957,8 @@ function slotPx(s, k) {
   } else {
     w = area;
   }
+  const wide = (s.images[k] || {}).width;
+  if (DP_WIDTHS.includes(wide) && wide !== 100) w = Math.round(w * wide / 100);
   const r = ((s.images[k] || {}).ratio || "1:1").split(":").map(Number);
   return { w, h: Math.round(w * (r[1] || 1) / (r[0] || 1)), lead: lay === "mosaic" && k === 0 };
 }
@@ -3978,6 +4016,11 @@ const DP_SCN_LINES = DP_SCN_GROUPS.flatMap(([group, rows]) => ["  [" + group + "
 const DP_DEFAULT_SCN = { hero: "hero-image", feature: "lifestyle-scene", detail: "detail-macro", wear: "model-showcase" };
 // These get a picture slot automatically.
 const DP_IMG_TYPES = Object.keys(DP_DEFAULT_SCN);
+// hero만 사진이 늘 있어야 한다. feature·detail·wear는 기획이 사진을 준 자리에만 만든다 —
+// 예전에는 type만 보고 빈 이미지 칸을 붙여서, 글만으로 충분한 모듈에도 사진이 생겼다.
+const DP_IMG_ALWAYS = ["hero"];
+// 이미지가 그 자리에서 차지할 가로 비율(%). 큰 사진만 이어지면 페이지가 단조로워진다.
+const DP_WIDTHS = [100, 75, 50];
 // closing is text-only from the model (parsePlan strips it); the seller can still add
 // one by hand, and drafts that already have one keep it.
 // grid/steps/compare/faq/spec are read, not looked at, so a stray image there is dropped.
@@ -3996,12 +4039,12 @@ const DP_PICKABLE = [
 ];
 const DP_PICK_KEY = "detail_sections_v1";
 const DP_SPEC_LINES = [
-  ["feature", "- feature: label(예: POINT 01), headline, body, image 또는 images[2~3] — 핵심 특징 하나씩"],
-  ["detail", "- detail: headline, body, image 또는 images[2~3] — 소재·마감·질감 클로즈업. 볼 곳이 여럿이면(겉/속, 위/아래, 이음새/표면) images로 나눠라"],
-  ["wear", "- wear: headline, body, image 또는 images[2~3] — 착용/사용 중인 모습. 각도·상황이 다른 2장이 한 장보다 낫다. 사람이 입거나 신거나 들거나 몸에 대고 쓰는 상품이면 쓴다."],
+  ["feature", "- feature: label(예: POINT 01), headline, body, image(선택) 또는 images[2~3] — 핵심 특징 하나씩"],
+  ["detail", "- detail: headline, body, image(선택) 또는 images[2~3] — 소재·마감·질감 클로즈업. 볼 곳이 여럿이면(겉/속, 위/아래, 이음새/표면) images로 나눠라"],
+  ["wear", "- wear: headline, body, image(선택) 또는 images[2~3] — 착용/사용 중인 모습. 각도·상황이 다른 2장이 한 장보다 낫다. 사람이 입거나 신거나 들거나 몸에 대고 쓰는 상품이면 쓴다."],
   ["grid", "- grid: headline, items[{title,text}] 3~4개 — 장점 요약"],
   ["steps", "- steps: headline, items[{title,text}] 3~4개 — 사용 방법"],
-  ["compare", "- compare: headline, rows[{label,mine,other}] 3~5개 — label은 비교 기준(예: 밑창), mine은 이 상품, other는 흔한 일반 제품. 선택을 쉽게 만드는 섹션"],
+  ["compare", "- compare: headline, rows[{label,mine,other}] 3~5개 — label은 비교 기준(소재·마감·크기 등 이 상품에 맞는 항목), mine은 이 상품, other는 흔한 일반 제품. 선택을 쉽게 만드는 섹션"],
   ["faq", "- faq: headline, items[{title,text}] 3~5개 — title은 구매 전에 실제로 망설이게 하는 질문, text는 그 답"],
   ["spec", "- spec: headline, rows[{label,value}] — 상품 정보에 적힌 사실만"],
 ];
@@ -4234,8 +4277,10 @@ async function callAnthropic(promptText, images, opts) {
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify(body),
+      signal: abortSig(),
     });
   } catch (e) {
+    if (isAbort(e)) throw e;
     throw new Error("Claude API에 연결하지 못했습니다. 인터넷 연결이나 차단 설정을 확인해 주세요.");
   }
   let j = null;
@@ -4278,8 +4323,9 @@ async function callTextModelRaw(promptText, apiKey, backend, model, images, opts
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
           body: JSON.stringify(body),
+          signal: abortSig(),
         });
-      } catch (e) { throw new Error(oa ? OA_NET_ERR : OR_NET_ERR); }
+      } catch (e) { if (isAbort(e)) throw e; throw new Error(oa ? OA_NET_ERR : OR_NET_ERR); }
       if (resp.ok) {
         const j = await resp.json();
         trackCost(backend, model, j);
@@ -4343,8 +4389,9 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
   if (nImages) photoLines.push("- The first " + nImages + " attached image(s) are product shots of the real " + (mainName ? "main product — the '" + mainName + "' option" : "product") +
     " (use them for Reference Fidelity). They are numbered: product shot 1" + (nImages > 1 ? " to " + nImages : "") +
     ". Each module's photo can be generated from just the product shots that show what that module needs, so note in each module's Visual which product shot number(s) it relies on.");
-  (optPhotos || []).forEach((o) => photoLines.push("- Image " + o.index + " is the '" + o.name + "' option of the same product — use it to know exactly how that option looks " +
-    "(colour, pattern, finish) when a module shows it."));
+  (optPhotos || []).forEach((o) => photoLines.push("- Image" + (o.count > 1 ? "s " + o.from + "-" + o.to + " are" : " " + o.from + " is") +
+    " the '" + o.name + "' option of the same product (its own photo" + (o.count > 1 ? "s 1-" + o.count : " 1") + ") — " +
+    "use them to know exactly how that option looks (colour, pattern, finish) and which of its photos suits a module."));
   return [
     "[Task] Detail page / PDP for the product below.",
     "[Execution mode] A. Standard Mode — the seller will review the Storyboard and confirm in the next turn.",
@@ -4361,7 +4408,13 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
     ...(opts ? ["[Options] This product has options (color / type): " + opts.join(", ") +
       ". The page gets an options module automatically (one generated shot per option); refer to the options by these names." +
       (mainName ? " The seller chose '" + mainName + "' as the main product: by default every module photo shows this option." : " By default every module photo shows the main product.") +
-      " A module photo may instead show another option, or several options together (e.g. a colour line-up), when that serves the module — decide this per photo."] : []),
+      " Decide per module photo which option it shows — do not default every photo to one option: spread the options across the modules where it suits the scene, " +
+      "and include at least one photo that shows several options together (a colour line-up or option comparison) when there is more than one option. " +
+      "IMPORTANT for image-generation prompts: the same module may be regenerated for a different option, so never state the PRODUCT'S own colour, tone, print or pattern " +
+      "in an image-generation prompt or in the product description — name the product without its colour (say 'the product', not 'the black product'); " +
+      "the product's colour always comes from the attached photo. " +
+      "Scene colours are different: keep describing the background, surface, props, lighting and mood in colour as usual, and where the staging has to suit the product's colour, " +
+      "say it relationally (e.g. 'a backdrop that complements the product's own colour as seen in the photo')."] : []),
     "[Copy tone] " + tone,
     count === "auto" ? "" : "[Number of modules] About " + count + " modules, as the seller prefers.",
     "[Module preferences] Opening and closing modules are always included. The seller wants these considered (only where the materials support them): " +
@@ -4420,6 +4473,8 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "- 카피는 카드의 '이미지 속 문구'(In-image copy)를 글자 그대로 옮긴다. 요약·보충·말투 변경 금지. 헤드라인이 길면 줄바꿈(\\n)만 넣어라.",
     "  문구가 작은 제목/헤드라인/서브/본문으로 나뉘어 있지 않으면 문장은 그대로 두고 역할에 맞는 필드에 나눠 담아라.",
     "- 카드에 '이미지 속 문구'가 없는 필드는 비워 둬라(\"\"). 지어내서 채우지 마라.",
+    "- 예외: hero·closing의 eyebrow(작은 제목)와 feature의 label(예: POINT 01)은 비워 두지 마라. 카드에 해당 문구가 없으면 그 카드의 헤드라인·본문에서 뽑아 " +
+      "한국어 2~10자 짧은 키워드로 채워라(그 모듈이 말하는 핵심을 한 낱말로, 또는 \"POINT 01\" 같은 번호). 헤드라인을 그대로 반복하지는 마라.",
     "",
     "type 고르기 (카드의 서사 기능 → 편집기 섹션 type):",
     "- 첫 모듈(Opening) → hero, 마지막 모듈(CTA) → closing.",
@@ -4431,32 +4486,59 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "- hero: eyebrow(짧은 키워드), headline, sub, image",
     ...DP_SPEC_LINES.map(([, line]) => line),
     ...(opts ? ["- options: headline, sub — 옵션(색상/종류) 안내. 기획서에 옵션 모듈이 있으면 이 type으로 옮기고 items는 넣지 마라(옵션 " + opts.join(", ") + "의 이미지와 이름은 자동으로 붙는다)."] : []),
-    "- closing: eyebrow, headline, sub — 구매를 권하는 마무리",
+    "- closing: eyebrow, headline, sub, image(선택) — 구매를 권하는 마무리. 마지막을 사진으로 맺는 기획이면 image를 넣고, 글로 끝내는 기획이면 빼라",
     "",
     "image 옮기기:",
+    "- 카드에 사진이 있는 모듈은 image(또는 images)를 넣고, 사진이 없는 모듈은 넣지 마라. 카드를 그대로 따르면 된다(hero는 늘 사진이 있다).",
     "- image = {scenario, variant, ratio, note, direction}. 카드의 사진이 여러 장이면 image 대신 images: [ {...}, {...} ] (최대 3장)와 imageLayout(\"row\" 같은 크기로 나란히 / \"mosaic\" 첫 장 크게)을 쓴다.",
     "- direction: 카드의 '이미지 생성 프롬프트'(Image-generation Prompt)를 영어로 옮긴다. 이 편집기는 글자를 HTML로 얹으므로 프롬프트 안의 글자·문구·로고·배지·콜아웃 지시만 빼고 나머지는 그대로 둔다.",
+    ...(optionNames && optionNames.length ? [
+      "  이 상품은 옵션(색상/종류)이 여러 개다: direction에 **상품 자체의 색·패턴**은 쓰지 마라(색 이름을 붙인 제품 표현 X, 색 없는 제품 표현 O). " +
+        "같은 자리를 다른 옵션으로 다시 만들 수 있고, 상품 색은 그때 첨부되는 사진에서 온다. 옵션 지정은 options 항목으로만 한다.",
+      "  반면 **장면의 색은 그대로 써라** — 배경·바닥·소품·조명·무드의 색과 톤은 구체적으로 적는 게 좋다. " +
+        "상품 색과 어울려야 하는 자리면 \"a backdrop that complements the product's own colour as seen in the photo\"처럼 관계로 적어라.",
+    ] : []),
     "  단, scenario가 hero-image(흰배경 대표이미지)인 자리는 흰 바탕 누끼 컷이다 — 공간·배경·소품·사람은 빼고 제품의 각도, 화면에서 차지하는 크기, 그림자 정도만 남겨라.",
     "- note: 카드의 '화면'(Visual)을 판매자가 읽을 한국어 한 문장으로 — 이 자리에 어떤 사진이 왜 필요한지.",
     "- scenario: 카드의 화면에 가장 가까운 것 하나. 목록:",
     ...DP_SCN_LINES,
     "- variant는 선택이다. 위 목록에서 그 scenario 뒤 [ ] 안에 적힌 키 중 하나만 쓸 수 있고, 어울리는 것이 없으면 넣지 마라.",
     "- ratio는 \"4:5\", \"1:1\", \"3:4\", \"4:3\", \"16:9\" 중 카드의 구도에 맞는 것 (hero는 4:5 권장).",
-    ...(nImages > 1 ? [
-      "- photos (선택): 이 사진을 만들 때 쓸 주상품 상품샷 번호 배열 (1~" + nImages + ", 첨부 순서). 여러 장 고를 수 있다.",
-      "  그 컷에 필요한 면·부분이 보이는 사진만 골라라 — 예: 밑창 접사 컷은 밑창이 보이는 사진, 착용컷은 정면 사진. 여러 면이 필요하면 여러 개 적어라.",
-      "  어느 사진이 맞는지 확신이 없거나 제품 전체 모습이 필요하면 아예 빼라(비우면 주상품 상품샷 전부를 쓴다). 고른 사진에 없는 면은 모델이 지어내지 못한다는 걸 기억해라.",
+    "- width: 이 사진이 그 자리에서 차지할 가로 비율 — 100(칸 전체) / 75 / 50 중 하나. 카드의 '디자인 설명'과 그 사진의 역할에 맞춰 정해라.",
+    "  큰 사진만 이어지면 페이지가 단조로워진다: 첫인상을 만드는 컷과 장면 컷은 100, 보조 설명 컷은 75, 작은 디테일·소품 컷은 50처럼 섞어라.",
+    ...(nImages + (optPhotos || []).reduce((a, o) => a + o.count, 0) > 1 ? [
+      "- photos (선택): 이 사진을 만들 때 쓸 상품샷 고르기.",
+      ...(nImages > 1 ? ["  · 배열로 적으면 주상품 묶음의 사진 번호다: [1, 3] — 앞의 주상품 상품샷 " + nImages + "장 안에서의 번호" +
+        (mainName ? " (주상품은 '" + mainName + "' 옵션이므로 그 옵션의 사진 번호와 같다)" : "") + "."] : []),
+      ...(optPhotos && optPhotos.length ? [
+        "  · options로 옵션을 골랐으면 옵션별 객체로: {\"" + optPhotos[0].name + "\": [1]} — **그 옵션 자신의 사진 번호**(1부터)다. 여러 옵션이면 옵션마다 적어라.",
+        "  · 첨부 순서와 옵션별 번호: " + optPhotos.map((o) => "'" + o.name + "' 사진 1~" + o.count + " = 첨부 " +
+          (o.count > 1 ? o.from + "~" + o.to : String(o.from)) + "번").join(", ") + ".",
+      ] : []),
+      "  **첨부된 사진을 하나씩 직접 보고 정해라.** 각 사진이 제품의 어느 면·어느 부분을 찍은 것인지 확인한 뒤, " +
+        "그 컷이 보여줘야 할 부분이 실제로 찍혀 있는 사진만 골라라. 사진을 보지 않고 번호만 찍지 마라 — " +
+        "그 부분이 안 보이는 사진은 도움이 되지 않고, 오히려 다른 부분을 그리게 만든다.",
+      "  **필요한 최소 장수만** 골라라: 보통 1~2장이면 충분하고, 서로 다른 면이 꼭 여럿 필요할 때만 3장까지. 참조 사진이 많을수록 좋은 게 아니라, " +
+        "그 컷과 관련 있는 사진 소수를 주는 쪽이 제품 충실도에 유리하다.",
+      "  어느 사진이 맞는지 확신이 없거나 제품 전체 모습이 필요하면 아예 빼라(비우면 그 묶음의 사진 전부를 쓴다). 고른 사진에 없는 면은 모델이 지어내지 못한다는 걸 기억해라.",
     ] : []),
     ...(opts ? [
       "- options: 이 사진에 나올 옵션 이름 배열. 고를 수 있는 이름: " + opts.map((o) => "\"" + o + "\"").join(", ") + " (글자 그대로).",
-      "  " + (mainName ? "기본은 주상품 [\"" + mainName + "\"] 하나." : "주상품만 나오면 빈 배열 []로 둔다.") +
-        " 카드의 화면이 다른 옵션을 보여주면 그 옵션을, 여러 색·종류를 한 장에 함께 보여주면(컬러 라인업, 옵션 비교 등) 그 옵션들을 모두 적어라.",
-      "  사진마다 따로 정한다 — 선택한 옵션의 사진이 이미지 생성에 첨부되고, 고르지 않은 옵션은 그 사진에 나오지 않는다. (options를 적으면 photos는 무시된다: 그 옵션의 사진을 쓴다.)",
+      "  **사진(images 안의 각 항목)마다 반드시 적어라.** 주상품만 나오는 컷도 생략하지 말고 그 옵션 이름을 적는다 — 어느 옵션으로 만드는지가 늘 드러나야 한다.",
+      "  사진마다 그 장면에 가장 어울리는 옵션을 골라라 — 주상품을 기본으로 반복하지 마라. 옵션이 여럿이면 사진마다 나눠 쓰고, " +
+        "여러 색·종류를 한 장에 함께 보여주는 컷(컬러 라인업, 옵션 비교)도 최소 한 장은 넣는 게 좋다." +
+        (mainName ? " 판매자가 고른 주상품은 '" + mainName + "'이니 대표컷 같은 핵심 자리에는 이 옵션을 쓰고, 나머지는 장면에 맞게 나눠라." : ""),
+      "  (그래도 비어 있으면 주상품 사진을 쓴다.)",
+      "  사진마다 따로 정한다 — 선택한 옵션의 사진이 이미지 생성에 첨부되고, 고르지 않은 옵션은 그 사진에 나오지 않는다. " +
+        "그 옵션 안에서 어떤 사진을 쓸지는 photos로 고른다(안 적으면 그 옵션의 사진 전부).",
     ] : []),
     "- match (선택): 이 사진이 앞의 특정 사진과 같은 촬영의 한 세트로 보여야 할 때만, 그 사진을 모듈 번호로 적는다(\"M3\" = M3의 첫 장, \"M3-2\" = M3의 둘째 장).",
     "  앞 사진이 참고 이미지로 함께 들어가 색감·조명·배경 계열을 맞춘다. 판단 기준: 같은 섹션에 나란히 놓이는 2·3번째 사진, 앞 모듈의 장면·모델·공간을 그대로 이어 가는 사진처럼",
     "  카드나 스타일 락이 '같은 장면/세트'를 말할 때만 쓴다. 장면·배경이 서로 다른 컷이면 넣지 마라 — 참고 이미지가 들어가면 모델이 그 사진을 비슷하게 따라 그린다.",
     "  반드시 페이지에서 앞에 있는 사진만 가리킨다. 흰배경 대표이미지(hero-image 누끼)는 가리키지도, 가리킴을 받지도 않는다. 대부분의 사진은 match 없이 둔다.",
+    "- matchMode (match를 쓸 때만): \"tone\"(기본) = 색감·조명·배경 계열만 맞추고 장면은 다르게. " +
+      "\"scene\" = 같은 장소·소품·조명을 그대로 이어가고 카메라 각도·거리만 바꾼다. " +
+      "한 공간에서 이어지는 연출(같은 책상 위, 같은 방)이면 scene, 페이지 전체 색감만 맞추면 되면 tone.",
     ...(nImages ? [
       "- 주상품 상품샷에서 확실히 보이는 제품의 면을 product_views에 적어라(front, back, side, top, bottom 중).",
     ] : []),
@@ -4475,10 +4557,12 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "",
     "최상위 필드:",
     "- concept: {name: 컨셉 이름(한국어, 짧게 — 기획서에 있으면 그대로), driver: 주 구매 동력(기획서 그대로), summary: 타깃·Top 3 구매 이유 한두 문장(한국어)}",
-    "- product_en: 이미지 생성용 영어 상품 묘사 한 문장 (스타일 락의 '제품 정체성' 기준: 외형, 색, 소재, 용기, 용량)",
+    "- product_en: 이미지 생성용 영어 상품 묘사 한 문장 (스타일 락의 '제품 정체성' 기준: 외형, 색, 소재, 용기, 용량)" +
+      (optionNames && optionNames.length ? " — 단, 이 상품은 옵션이 여러 개이므로 상품 색·패턴 이름은 빼고 모양·구조·소재·크기만 적어라(상품 색은 사진에서 온다)." : ""),
     ...(nImages ? [
       "- product_views: 상품샷에서 확실히 보이는 면 배열",
-      "- product_notes: 스타일 락의 '꼭 지킬 것'을 영어로 짧게 (사진에 보이는 형태, 색, 소재·질감, 패턴, 로고·문구 위치 등)",
+      "- product_notes: 스타일 락의 '꼭 지킬 것'을 영어로 짧게 (사진에 보이는 형태, 색, 소재·질감, 패턴, 로고·문구 위치 등)" +
+        (optionNames && optionNames.length ? " — 옵션이 여러 개이므로 특정 색 이름은 쓰지 말고, '사진과 같은 색·패턴을 그대로'처럼 적어라." : ""),
     ] : []),
     "- style: {layout: 위 레이아웃 키, tokens: 위 세부 디자인, accent: 스타일 락의 포인트 색 hex, visual: 스타일 락의 색·조명·배경·무드를 영어 한 문장으로}",
     "- negative: 스타일 락의 '금지 사항'과 카드의 금지 사항 중 모든 사진에 공통인 것을 영어 짧은 구절 3~5개로",
@@ -4486,7 +4570,7 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     "",
     "출력 예: {\"concept\":{\"name\":\"...\",\"driver\":\"...\",\"summary\":\"...\"},\"product_en\":\"...\"," + (nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") +
       "\"style\":{\"layout\":\"classic\",\"tokens\":{\"align\":\"left\",\"radius\":\"none\"},\"accent\":\"#2F5D50\",\"visual\":\"...\"},\"negative\":\"...\"," +
-      "\"sections\":[{\"module\":\"M1\",\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"note\":\"...\",\"direction\":\"...\"" + (opts ? ",\"options\":[" + (mainName ? "\"" + mainName + "\"" : "") + "]" : "") + "}}," +
+      "\"sections\":[{\"module\":\"M1\",\"type\":\"hero\",\"place\":\"below\",\"bg\":\"white\",\"eyebrow\":\"...\",\"headline\":\"...\",\"sub\":\"...\",\"image\":{\"scenario\":\"hero-image\",\"ratio\":\"4:5\",\"width\":100,\"note\":\"...\",\"direction\":\"...\"" + (opts ? ",\"options\":[" + (mainName ? "\"" + mainName + "\"" : "") + "]" : "") + "}}," +
       "{\"module\":\"M2\",\"type\":\"wear\",\"place\":\"above\",\"bg\":\"alt\",\"headline\":\"...\",\"body\":\"...\",\"imageLayout\":\"row\",\"images\":[{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\"},{\"scenario\":\"model-showcase\",\"ratio\":\"3:4\",\"note\":\"...\",\"direction\":\"...\",\"match\":\"M2\"}]}]}",
   ];
 }
@@ -4527,7 +4611,7 @@ function normalizePlan(j) {
         label: str(r && r.label), mine: str(r && r.mine), other: str(r && r.other),
       }));
     }
-    if (DP_IMG_TYPES.includes(x.type) || (DP_IMG_OK.includes(x.type) && (x.image || x.images))) {
+    if (DP_IMG_ALWAYS.includes(x.type) || (DP_IMG_OK.includes(x.type) && (x.image || x.images))) {
       // A section can carry up to DP_MAX_IMG images. images[0] keeps the old
       // storage key (s.id), so drafts saved before this existed still load.
       const list = Array.isArray(x.images) && x.images.length ? x.images : [x.image || {}];
@@ -4540,23 +4624,35 @@ function normalizePlan(j) {
           // 세부 스타일. 시나리오가 실제로 가진 키만 살린다(시나리오를 바꾸면 비워진다).
           variant: vs[str(im.variant)] ? str(im.variant) : "",
           ratio: DP_RATIOS.includes(im.ratio) ? im.ratio : (x.type === "hero" ? "4:5" : "1:1"),
+          width: DP_WIDTHS.includes(parseInt(im.width, 10)) ? parseInt(im.width, 10) : 100,
           note: str(im.note),
           direction: str(im.direction),
         };
-        // 이 칸에 쓸 주상품 상품샷 번호(1부터). 저장된 초안은 pidx, 기획 모델은 photos로 준다.
-        const ph = Array.isArray(im.pidx) ? im.pidx : (Array.isArray(im.photos) ? im.photos : []);
-        const pidx = [...new Set(ph.map((v) => parseInt(v, 10)).filter((v) => v >= 1))].sort((a, b) => a - b);
-        if (pidx.length) one.pidx = pidx;
+        // 이 칸에 쓸 사진. 저장된 초안은 shots/pidx, 기획 모델은 photos(배열=주상품, 객체=옵션별)로 준다.
+        const nums = (v) => [...new Set((Array.isArray(v) ? v : []).map((x) => parseInt(x, 10)).filter((x) => x >= 1))].sort((a, b) => a - b);
+        if (im.shots && typeof im.shots === "object") {
+          const sh = {};
+          Object.entries(im.shots).forEach(([k, v]) => { const n = nums(v); if (n.length) sh[k] = n; });
+          if (Object.keys(sh).length) one.shots = sh;
+        } else if (im.photos && !Array.isArray(im.photos) && typeof im.photos === "object") {
+          const sh = {};
+          Object.entries(im.photos).forEach(([name, v]) => { const id = optionIdByName(name), n = nums(v); if (id && n.length) sh[id] = n; });
+          if (Object.keys(sh).length) one.shots = sh;
+        }
+        const ph = nums(Array.isArray(im.pidx) ? im.pidx : im.photos);
+        if (ph.length) one.pidx = ph;
         // 이 칸에 나올 옵션(옵션 그룹 id). 저장된 초안은 vids, 기획 모델은 options(이름)로 준다.
         if (Array.isArray(im.vids)) {
           const ids = im.vids.map(str).filter(Boolean);
           if (ids.length) one.vids = ids;
         } else {
           const names = Array.isArray(im.options) ? im.options : (im.options ? [im.options] : []);
+          // 기획이 적은 옵션은 주상품과 같아도 그대로 남긴다 — 화면에서 어느 옵션인지 드러나야 한다.
           const ids = [...new Set(names.map((n) => optionIdByName(str(n))).filter(Boolean))];
-          // 주상품 하나만 적은 경우는 기본값과 같으니 비워 둔다.
-          if (ids.length && !(ids.length === 1 && ids[0] === mainVid)) one.vids = ids;
+          if (ids.length) one.vids = ids;
         }
+        // 참조 방식: tone = 색감·조명만 / scene = 같은 장소·소품까지 이어가기
+        if (im.matchMode === "scene" || im.matchMode === "tone") one.matchMode = im.matchMode;
         if (im.match) one.match = str(im.match);   // 톤을 맞출 앞 컷: 이미지 키(s…#imgN), 또는 기획 모델이 쓴 "M3"/"M3-2" (아래에서 키로 바꾼다)
         if (im.prompt) one.prompt = str(im.prompt);   // prompt the current image was made with
         if (im.custom) one.custom = str(im.custom);   // hand-edited prompt (overrides the automatic one)
@@ -4669,10 +4765,6 @@ function planParseError(what, text) {
 function parsePlan(text) {
   const j = parseJsonLoose(text);
   if (!j) throw planParseError("구성안을", text);
-  // Models add a closing photo even when told not to; the page ends on copy.
-  (Array.isArray(j.sections) ? j.sections : []).forEach((x) => {
-    if (x && x.type === "closing") { delete x.image; delete x.images; delete x.imageLayout; }
-  });
   return normalizePlan(j);
 }
 
@@ -4717,10 +4809,14 @@ function planPhotos() {
   const mg = groups.find((g) => g.refs === mainRefs);
   const images = mainRefs.slice(0, 5);
   const nMain = images.length;
+  // 옵션마다 사진을 최대 3장까지(전체 10장 한도) 보낸다 — 기획 모델이 옵션 안에서도 쓸 사진을 고를 수 있게.
   const optPhotos = [];
-  groups.filter((g) => g.refs !== mainRefs).slice(0, 5).forEach((g) => {
-    images.push(g.refs[0]);
-    optPhotos.push({ name: g.name.trim() || "옵션", index: images.length });
+  groups.filter((g) => g.refs !== mainRefs).forEach((g) => {
+    const take = g.refs.slice(0, 3).slice(0, Math.max(0, 10 - images.length));
+    if (!take.length) return;
+    const from = images.length + 1;
+    images.push(...take);
+    optPhotos.push({ name: g.name.trim() || "옵션", from, to: images.length, count: take.length, index: from });
   });
   return { groups, images, nMain, optPhotos, mainName: mg ? (mg.name.trim() || "옵션") : "" };
 }
@@ -4848,6 +4944,39 @@ function lockPlanButtons(on) {
   dpRunning = on;
   ["dAuto", "dPlan", "dpStoryGo", "dpStoryRedo", "dpStoryDrop"].forEach((id) => { $(id).disabled = on; });
 }
+// 구성(스토리보드·모듈 카드) 단계는 텍스트 요청이라 중간에 끊어도 버릴 게 없다 — 바로 취소한다.
+// 경과 시간을 함께 보여줘서 어디서 오래 걸리는지 알 수 있게 한다.
+let planTimer = null;
+function planRunUI(text) {
+  const bar = $("dpRunBar"), stop = $("dpRunStop");
+  clearInterval(planTimer);
+  if (text == null) { bar.hidden = true; return; }
+  const t0 = Date.now();
+  const tick = () => { $("dpRunText").textContent = text + " (" + Math.round((Date.now() - t0) / 1000) + "초)"; };
+  tick();
+  planTimer = setInterval(tick, 1000);
+  bar.hidden = false;
+  stop.disabled = false;
+  stop.textContent = "중단";
+  stop.title = "요청을 취소합니다";
+  stop.onclick = () => {
+    if (textAbort) textAbort.abort();
+    stop.disabled = true;
+    stop.textContent = "중단하는 중…";
+  };
+}
+// 구성 단계 실행 감싸기: 중단 신호를 켜고, 끝나면 정리한다.
+async function withPlanRun(label, fn) {
+  textAbort = new AbortController();
+  planRunUI(label);
+  try {
+    return await fn();
+  } finally {
+    textAbort = null;
+    planRunUI(null);
+    $("dpRunStop").onclick = dpRequestStop;   // 이미지 생성 쪽 기본 동작으로 되돌린다
+  }
+}
 async function startStoryboard(auto) {
   const inp = checkPlanInputs();
   if (!inp) return;
@@ -4858,12 +4987,12 @@ async function startStoryboard(auto) {
   setDStatus("");
   try {
     dpNoPhotoOk = false;   // 초안이 바뀌면 상품샷 확인을 다시 받는다
-    await makeStoryboard(inp.apiKey, inp.name, inp.info, auto);
+    await withPlanRun("1/2 전략·스토리보드 짜는 중", () => makeStoryboard(inp.apiKey, inp.name, inp.info, auto));
     lastTextCalls = 1;
     setDStatus("1단계 완료: 오른쪽 스토리보드를 확인하고 '계속 생성'을 누르세요. 고칠 점은 직접 고치거나 수정 요청으로 다시 짤 수 있어요.", "ok");
     $("dpStory").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
-    setDStatus(String(err.message || err), "err");
+    setDStatus(isAbort(err) ? "구성을 중단했습니다." : String(err.message || err), isAbort(err) ? "ok" : "err");
   } finally {
     lockPlanButtons(false);
     btn.textContent = DP_BTN_TEXT[btn.id];
@@ -4923,7 +5052,7 @@ $("dpStoryGo").onclick = async () => {
       (miss ? " · 빈 이미지 " + miss + "장 남음('빈 이미지 모두 생성'으로 이어서)" : "") +
       ". 글자는 클릭해서 고치고, 이미지는 섹션 도구줄에서 다시 만들 수 있어요.", r.stopped || miss ? "" : "ok");
   } catch (err) {
-    setDStatus(String(err.message || err), "err");
+    setDStatus(isAbort(err) ? "중단했습니다. 스토리보드는 그대로 남아 있으니 다시 '계속 생성'을 누르면 됩니다." : String(err.message || err), isAbort(err) ? "ok" : "err");
   } finally {
     lockPlanButtons(false);
     renderStory();
@@ -5006,7 +5135,7 @@ async function reviewPrompts() {
       const slot = job.slot || 0;
       const text = it ? optionPrompt(s, job.k) : sectionPrompt(s, slot);
       const auto = it ? autoOptionPrompt(s, job.k) : autoSectionPrompt(s, slot);
-      const prod = it ? (g ? g.refs : []) : slotProductRefs(s.images[slot]);
+      const prod = it ? optItemRefs(it) : slotProductRefs(s.images[slot]);
       const qaGroups = it ? null : slotQaGroups(s.images[slot]);
       const wrap = document.createElement("div");
       wrap.className = "rvitem";
@@ -5018,21 +5147,87 @@ async function reviewPrompts() {
       // 무엇이 첨부되는지: 상품샷(옵션별) + 톤 참조 / 옵션 이미지는 그 옵션 사진 + 구도 기준 컷.
       const att = document.createElement("div");
       att.className = "rvatt";
-      const mainG = variantGroups.find((v) => v.refs === dpProductRefs());
       const parts = it
-        ? [(g ? "'" + optName(g) + "' 사진 " + g.refs.length + "장" : "옵션 사진 없음"), optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""]
-        : [qaGroups ? qaGroups.map((x) => "'" + x.name + "' " + x.refs.length + "장").join(" + ")
-            : (prod.length ? (mainG ? "주상품 '" + optName(mainG) + "' " : "상품샷 ") + prod.length + "장" +
-                ((s.images[slot].pidx || []).length ? " (" + s.images[slot].pidx.join(", ") + "번)" : "") : "상품샷 없음"),
-          dpStyleRefs(s, slot).length ? "톤 참조 1장" : ""];
+        ? [(g ? "'" + optName(g) + "' 사진 " + optItemRefs(it).length + "장" + ((it.pick || []).length ? " (" + it.pick.join(",") + "번)" : "") : "옵션 사진 없음"),
+           optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""]
+        : [slotAttachText(s.images[slot]), dpStyleRefs(s, slot).length ? "톤 참조 1장" : "",
+           pendingToneRef(s, slot) ? "톤 참조: " + pendingToneRef(s, slot) + " (아직 생성 전 — 그 컷을 만든 뒤 함께 첨부되고, 색감을 맞추라는 문구도 프롬프트에 붙습니다)" : ""];
       att.textContent = "첨부: " + parts.filter(Boolean).join(" · ");
       const ta = document.createElement("textarea");
       ta.value = text;
+      ta.oninput = () => { ta.dataset.edited = "1"; };   // 직접 고친 칸은 자동 갱신하지 않는다
+      // 이 자리에서 옵션을 바꾸면 첨부 사진·프롬프트·검사 내용이 함께 바뀐다 (직접 고친 칸은 그대로 둔다).
+      const ctl = document.createElement("div");
+      ctl.className = "rvopts";
+      const refresh = async () => {
+        if (it) {
+          const refs2 = optItemRefs(it);
+          if ($("specCheck").checked && $("apikey").value.trim()) {
+            try { await productSpec(refs2.filter((f) => f.b64)); } catch (e) {}
+          }
+          att.textContent = "첨부: " + ["'" + (it.title || "옵션") + "' " + refs2.length + "장" +
+            ((it.pick || []).length ? " (" + it.pick.join(",") + "번)" : ""),
+            optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""].filter(Boolean).join(" · ");
+          if (!ta.dataset.edited) { delete it.custom; ta.value = autoOptionPrompt(s, job.k); }
+          sum.textContent = qaPlanText(refs2, qaPassFor("hero-image"));
+          const pre1 = qa.querySelector("pre");
+          if (pre1) pre1.textContent = qaPromptsPreview(refs2);
+          saveDetailSoon();
+          return;
+        }
+        const im2 = s.images[slot];
+        const gs2 = slotQaGroups(im2), prod2 = slotProductRefs(im2);
+        if ($("specCheck").checked && $("apikey").value.trim()) {
+          sum.textContent = "상품 디테일 확인 중…";
+          for (const gg of (gs2 || [{ name: "", refs: prod2 }])) {
+            try { await productSpec(gg.refs.filter((f) => f.b64)); } catch (e) {}
+          }
+        }
+        att.textContent = "첨부: " + [slotAttachText(im2), dpStyleRefs(s, slot).length ? "톤 참조 1장" : "",
+          pendingToneRef(s, slot) ? "톤 참조: " + pendingToneRef(s, slot) + " (아직 생성 전 — 그 컷을 만든 뒤 함께 첨부됩니다)" : ""].filter(Boolean).join(" · ");
+        if (!ta.dataset.edited) { delete im2.custom; ta.value = autoSectionPrompt(s, slot); }
+        sum.textContent = qaPlanText(gs2 || prod2, qaPassFor(im2.scenario));
+        const pre2 = qa.querySelector("pre");
+        if (pre2) pre2.textContent = qaPromptsPreview(gs2 || prod2);
+        saveDetailSoon();
+      };
+      if (it) {
+        const og = optItemGroup(it);
+        if (og && og.refs.length > 1) {
+          const pp = photoPicker(og.refs, it.pick || [], (next) => {
+            if (next.length) it.pick = next; else delete it.pick;
+            refresh();
+          }, false);
+          pp.title = "이 옵션 이미지에 첨부할 사진. 아무것도 안 고르면 이 옵션의 사진 전부를 씁니다.";
+          ctl.appendChild(pp);
+        }
+      }
+      if (!it) {
+        const im1 = s.images[slot];
+        const picker1 = shotPicker(im1, refresh, false);
+        if (picker1.children.length) {
+          picker1.title = "이 이미지에 첨부할 상품샷. 옵션 이름을 끄면 그 옵션이 빠지고, 썸네일로 사진을 하나씩 고를 수 있어요.";
+          ctl.appendChild(picker1);
+        }
+        if (filledVariants().length > 1 && im1.direction.trim()) {
+          const nb = document.createElement("button");
+          nb.type = "button"; nb.className = "rvfix"; nb.textContent = "지시문 옵션 맞추기";
+          nb.title = "지시문에 박힌 다른 옵션의 색 표현을 이 자리의 옵션에 맞게 고칩니다 (텍스트 모델 1회).";
+          nb.onclick = async () => {
+            const old = nb.textContent;
+            nb.disabled = true; nb.innerHTML = '<span class="spin dark"></span>고치는 중…';
+            try { await dpNeutralizeDirection(s, slot); ta.dataset.edited = ""; await refresh(); }
+            catch (e) { att.textContent = "지시문 고치기 실패: " + String(e.message || e); }
+            finally { nb.disabled = false; nb.textContent = old; }
+          };
+          ctl.appendChild(nb);
+        }
+      }
       // 생성 후 검사(C): 사람이 읽는 설명 + 실제로 보낼 검사·수정 프롬프트.
       const qa = document.createElement("details");
       qa.className = "rvqa";
       const sum = document.createElement("summary");
-      sum.textContent = qaPlanText(prod);
+      sum.textContent = qaPlanText(qaGroups || prod, it ? qaPassFor("hero-image") : qaPassFor(s.images[slot].scenario));
       qa.appendChild(sum);
       if (prod.length && $("qaCheck").checked) {
         const pre = document.createElement("pre");
@@ -5040,7 +5235,9 @@ async function reviewPrompts() {
         pre.textContent = qaPromptsPreview(qaGroups || prod);
         qa.appendChild(pre);
       }
-      wrap.appendChild(lab); wrap.appendChild(att); wrap.appendChild(ta); wrap.appendChild(qa);
+      wrap.appendChild(lab); wrap.appendChild(att);
+      if (ctl.children.length) wrap.appendChild(ctl);
+      wrap.appendChild(ta); wrap.appendChild(qa);
       list.appendChild(wrap);
       return { s, it, slot, ta, auto };
     });
@@ -5050,7 +5247,9 @@ async function reviewPrompts() {
       if (ok) rows.forEach((r) => {
         const v = r.ta.value;
         const target = r.it || r.s.images[r.slot];
-        if (v.trim() && v !== r.auto) target.custom = v; else delete target.custom;
+        // 옵션·사진을 바꿔 자동으로 다시 만들어진 칸은 custom으로 굳히지 않는다.
+        const auto = r.it ? autoOptionPrompt(r.s, r.s.items.indexOf(r.it)) : autoSectionPrompt(r.s, r.slot);
+        if (r.ta.dataset.edited && v.trim() && v !== auto) target.custom = v; else delete target.custom;
       });
       if (dlg.open) dlg.close();
       saveDetailSoon(); renderDetail();
@@ -5226,6 +5425,7 @@ function renderSection(s, i, clean) {
       const url = dimgs[imgKey(s, k)];
       const w = multi ? document.createElement("div") : box;
       if (multi) w.className = "dp-img";
+      if (slot.width && slot.width !== 100) { w.style.maxWidth = slot.width + "%"; w.style.marginLeft = "auto"; w.style.marginRight = "auto"; }
       if (url) {
         const im = document.createElement("img");
         im.src = url; im.alt = s.headline || "";
@@ -5377,13 +5577,37 @@ function renderTools(s, i) {
         msel.appendChild(none);
         cands.forEach((c) => { const o = document.createElement("option"); o.value = c.key; o.textContent = "톤 참조: " + c.label; msel.appendChild(o); });
         msel.value = cands.some((c) => c.key === im.match) ? im.match : "";
-        msel.onchange = () => { if (msel.value) im.match = msel.value; else delete im.match; saveDetailSoon(); };
+        msel.onchange = () => { if (msel.value) im.match = msel.value; else delete im.match; saveDetailSoon(); renderDetail(); };
+      }
+      // 참조 방식: 색감만 맞출지, 같은 장소·소품까지 이어갈지
+      let mmode = null;
+      if (im.match && dplan.style.lockLook && !dpWhitePackshot(im)) {
+        mmode = document.createElement("select");
+        mmode.setAttribute("aria-label", "참조 방식");
+        [["tone", "색감만 맞추기"], ["scene", "같은 장면 이어가기"]].forEach(([v, t]) => {
+          const o = document.createElement("option"); o.value = v; o.textContent = t; mmode.appendChild(o);
+        });
+        mmode.value = im.matchMode === "scene" ? "scene" : "tone";
+        mmode.title = "색감만 맞추기: 색·조명·배경 계열만 맞추고 장면은 다르게. 같은 장면 이어가기: 장소·소품·조명까지 그대로 두고 카메라만 옮깁니다.";
+        mmode.onchange = () => { if (mmode.value === "scene") im.matchMode = "scene"; else delete im.matchMode; saveDetailSoon(); renderDetail(); };
       }
       const ratio = document.createElement("select");
       ratio.setAttribute("aria-label", "이미지 비율");
       DP_RATIOS.forEach((r) => { const o = document.createElement("option"); o.value = o.textContent = r; ratio.appendChild(o); });
       ratio.value = im.ratio;
       ratio.onchange = () => { im.ratio = ratio.value; saveDetailSoon(); renderDetail(); };
+      const wsel = document.createElement("select");
+      wsel.setAttribute("aria-label", "이미지 폭");
+      wsel.title = "이 자리에서 이미지가 차지할 가로 비율";
+      DP_WIDTHS.forEach((v) => { const o = document.createElement("option"); o.value = String(v); o.textContent = "폭 " + v + "%"; wsel.appendChild(o); });
+      wsel.value = String(im.width || 100);
+      wsel.onchange = () => { im.width = parseInt(wsel.value, 10); saveDetailSoon(); renderDetail(); };
+      const qaBadge = im.qa && dimgs[key] ? document.createElement("span") : null;
+      if (qaBadge) {
+        qaBadge.className = "qa-badge" + (im.qa.failed ? " bad" : "");
+        qaBadge.textContent = (im.qa.failed ? "⚠ " : "✓ ") + im.qa.score + "점";
+        qaBadge.title = im.qa.note + "\n\n원본 상품샷과 비교한 일치 점수입니다 (이 컷은 " + (im.qa.pass || qaPassFor(im.scenario)) + "점 이상 통과).";
+      }
       const size = document.createElement("span");
       size.className = "sec-px";
       size.textContent = px.w + "×" + px.h;
@@ -5397,69 +5621,27 @@ function renderTools(s, i) {
       r.appendChild(scn);
       if (vkeys.length) r.appendChild(vsel);
       if (msel.options.length) r.appendChild(msel);
-      // 이 칸에 쓸 주상품 상품샷 고르기 (옵션을 고른 칸은 그 옵션 사진을 쓰므로 숨긴다).
-      const mainShots = dpProductRefs();
-      if (mainShots.length > 1 && !slotOptionGroups(im)) {
-        const pbox = document.createElement("span");
-        pbox.className = "sec-opts sec-shots";
-        pbox.title = "이 이미지를 만들 때 첨부할 상품샷. 아무것도 안 고르면 전부 씁니다.";
-        pbox.appendChild(document.createTextNode("사진"));
-        mainShots.forEach((f, n) => {
-          const lab = document.createElement("label");
-          const cb = document.createElement("input");
-          cb.type = "checkbox"; cb.checked = (im.pidx || []).includes(n + 1); cb.disabled = busy;
-          cb.onchange = () => {
-            const on = new Set(im.pidx || []);
-            if (cb.checked) on.add(n + 1); else on.delete(n + 1);
-            im.pidx = mainShots.map((_, x) => x + 1).filter((x) => on.has(x));
-            if (!im.pidx.length || im.pidx.length === mainShots.length) delete im.pidx;
-            saveDetailSoon(); renderDetail();
-          };
-          const th = document.createElement("img");
-          th.src = f.url; th.alt = "";
-          lab.title = "상품샷 " + (n + 1);
-          lab.appendChild(cb); lab.appendChild(th);
-          pbox.appendChild(lab);
-        });
-        if (!(im.pidx || []).length) {
-          const d = document.createElement("em");
-          d.textContent = "기본: 전부(" + mainShots.length + "장)";
-          pbox.appendChild(d);
-        }
-        r.appendChild(pbox);
+      if (mmode) r.appendChild(mmode);
+      // 이 칸에 넣을 옵션과 사진 고르기 (옵션별로 사진이 여러 장일 수 있다).
+      const picker = shotPicker(im, () => { saveDetailSoon(); renderDetail(); }, busy);
+      if (picker.children.length) {
+        picker.title = "이 이미지에 첨부할 상품샷. 옵션 이름을 끄면 그 옵션 전체가 빠지고, 썸네일로 사진을 하나씩 고를 수 있어요.";
+        r.appendChild(picker);
       }
-      const fv = filledVariants();
-      if (fv.length) {
-        const box = document.createElement("span");
-        box.className = "sec-opts";
-        box.title = "이 이미지에 넣을 옵션. 고른 옵션의 사진만 첨부합니다. 아무것도 안 고르면 주상품.";
-        box.appendChild(document.createTextNode("옵션"));
-        const chosen = im.vids || [];
-        fv.forEach((g) => {
-          const lab = document.createElement("label");
-          const cb = document.createElement("input");
-          cb.type = "checkbox"; cb.checked = chosen.includes(g.id); cb.disabled = busy;
-          cb.onchange = () => {
-            const on = new Set(im.vids || []);
-            if (cb.checked) on.add(g.id); else on.delete(g.id);
-            im.vids = fv.map((x) => x.id).filter((id) => on.has(id));
-            if (!im.vids.length) delete im.vids;
-            saveDetailSoon(); renderDetail();
-          };
-          lab.appendChild(cb);
-          lab.appendChild(document.createTextNode(optName(g)));
-          box.appendChild(lab);
-        });
-        if (!slotOptionGroups(im)) {
-          const d = document.createElement("em");
-          d.textContent = "기본: 주상품";
-          box.appendChild(d);
-        }
-        r.appendChild(box);
-      }
-      r.appendChild(ratio); r.appendChild(size); r.appendChild(brk()); r.appendChild(dir);
+      r.appendChild(ratio); r.appendChild(wsel); r.appendChild(size);
+      if (qaBadge) r.appendChild(qaBadge);
+      r.appendChild(brk()); r.appendChild(dir);
       r.appendChild(toolButton(busy ? "생성 중…" : (dimgs[key] ? "다시 생성" : "이미지 생성"),
         () => genSectionImage(s, null, k).catch((e) => setDStatus(String(e.message || e), "err")), busy));
+      if (filledVariants().length > 1 && im.direction.trim()) {
+        const nb = toolButton("지시문 옵션 맞추기", async () => {
+          setDStatus("이미지 지시를 고른 옵션에 맞게 고치는 중…");
+          try { await dpNeutralizeDirection(s, k); setDStatus("이미지 지시를 이 자리의 옵션에 맞게 다시 썼습니다.", "ok"); }
+          catch (e) { setDStatus(String(e.message || e), "err"); }
+        }, busy);
+        nb.title = "지시문에 박힌 다른 옵션의 색 표현을 이 자리의 옵션에 맞게 고칩니다 (텍스트 모델 1회). 장면·배경 색은 그대로 두고, 필요하면 그 옵션에 어울리게 조정합니다.";
+        r.appendChild(nb);
+      }
       r.appendChild(toolButton(im.custom ? "프롬프트 ✎" : "프롬프트", () => showPrompt(
         (i + 1) + "번 " + DP_TYPES[s.type] + (s.images.length > 1 ? " · " + (k + 1) + "번 이미지" : ""),
         sectionPrompt(s, k),
@@ -5552,6 +5734,22 @@ function renderTools(s, i) {
       dir.oninput = () => { if (dir.value.trim()) it.direction = dir.value; else delete it.direction; saveDetailSoon(); };
       r.appendChild(dir);
       const kBusy = dbusy.has(key);
+      if (it.qa && dimgs[key]) {
+        const b = document.createElement("span");
+        b.className = "qa-badge" + (it.qa.failed ? " bad" : "");
+        b.textContent = (it.qa.failed ? "⚠ " : "✓ ") + it.qa.score + "점";
+        b.title = it.qa.note;
+        r.appendChild(b);
+      }
+      const og = optItemGroup(it);
+      if (og && og.refs.length > 1) {
+        const pp = photoPicker(og.refs, it.pick || [], (next) => {
+          if (next.length) it.pick = next; else delete it.pick;
+          saveDetailSoon(); renderDetail();
+        }, kBusy);
+        pp.title = "이 옵션 이미지에 첨부할 사진. 아무것도 안 고르면 이 옵션의 사진 전부를 씁니다.";
+        r.appendChild(pp);
+      }
       r.appendChild(toolButton(kBusy ? "생성 중…" : (dimgs[key] ? "다시 생성" : "이미지 생성"),
         () => genOptionImage(s, k).catch((e) => setDStatus(String(e.message || e), "err")), kBusy));
       r.appendChild(toolButton(it.custom ? "프롬프트 ✎" : "프롬프트", () => showPrompt(
@@ -5725,6 +5923,14 @@ function dpWhitePackshot(im) {
   const bg = mergedTemplate(scenarioById("hero-image"), im.variant || "", null).background || "";
   return /white/i.test(bg);
 }
+// 이 칸이 톤을 맞추기로 한 앞 컷의 이름 (아직 생성 전이어도 알려 준다).
+function pendingToneRef(s, k) {
+  const im = (s.images || [])[k] || {};
+  if (!dplan.style.lockLook || !im.match || dpWhitePackshot(im)) return "";
+  if (dpStyleRefs(s, k).length) return "";              // 이미 붙고 있다
+  const c = dpMatchCandidates(imgKey(s, k)).find((x) => x.key === im.match);
+  return c ? c.label : "";
+}
 // 톤을 맞출 앞 컷 후보: 페이지 순서에서 이 자리보다 앞에 있는 이미지 자리.
 // 흰 바탕 누끼는 기준이 될 수도, 기준을 따를 필요도 없다 — 배경이 흰색이라 다른
 // 컷의 색감·배경을 대표하지 못하고, 반대로 다른 컷의 색감을 흰 바탕에 씌우면 안 된다.
@@ -5773,27 +5979,140 @@ function slotOptionGroups(im) {
   return gs.length ? gs : null;
 }
 const optName = (g) => g.name.trim() || "옵션";
-// 이 칸에 첨부할 상품샷: 고른 옵션들의 사진, 없으면 주상품 사진(칸에서 고른 번호만, 없으면 전부).
+// 칸마다 고른 사진: im.shots = {"<옵션 id>" 또는 "": [사진 번호…]} — 없으면 그 묶음의 사진 전부.
+// (예전 초안의 im.pidx는 주상품 사진 번호였다 — 아래에서 같은 뜻으로 읽어 준다.)
+const MAIN_GID = "";
+function slotShotGroups(im) {
+  const chosen = slotOptionGroups(im);
+  const base = chosen
+    ? chosen.map((g) => ({ id: g.id, name: optName(g), refs: g.refs }))
+    : [{ id: MAIN_GID, name: "", refs: dpProductRefs() }];
+  const sh = (im && im.shots) || {};
+  return base.map((g) => {
+    // pidx(배열 표기)는 주상품 묶음의 번호다. 옵션을 하나만 고른 칸이면 그 옵션이 곧 그 묶음이므로 그대로 쓴다.
+    const single = base.length === 1;
+    const legacy = !sh[g.id] && im && im.pidx && (g.id === MAIN_GID || single) ? im.pidx : null;
+    const pick = (sh[g.id] || legacy || []).filter((n) => n >= 1 && n <= g.refs.length);
+    return Object.assign({}, g, { pick: pick.length ? pick : null });
+  });
+}
+const groupRefs = (g) => (g.pick ? g.pick.map((n) => g.refs[n - 1]).filter(Boolean) : g.refs);
+// 이 칸에 첨부할 상품샷 (고른 옵션 × 고른 사진 순서대로).
 function slotProductRefs(im) {
-  const gs = slotOptionGroups(im);
-  if (gs) return [].concat(...gs.map((g) => g.refs));
-  const all = dpProductRefs();
-  const pick = (im && im.pidx ? im.pidx : []).map((n) => all[n - 1]).filter(Boolean);
-  return pick.length ? pick : all;
+  return [].concat(...slotShotGroups(im).map(groupRefs));
 }
 // 디테일 추출·일치 검사용 묶음 (옵션을 골랐을 때만).
 function slotQaGroups(im) {
-  const gs = slotOptionGroups(im);
-  return gs ? gs.map((g) => ({ name: optName(g), refs: g.refs })) : null;
+  return slotOptionGroups(im) ? slotShotGroups(im).map((g) => ({ name: g.name, refs: groupRefs(g) })) : null;
+}
+// 한 묶음의 사진 선택을 저장한다. 전부 고른 것과 같으면 기록하지 않는다(기본값).
+function setSlotShots(im, gid, pick, total) {
+  const sh = Object.assign({}, im.shots || {});
+  if (!pick.length || pick.length === total) delete sh[gid]; else sh[gid] = pick.slice().sort((a, b) => a - b);
+  if (Object.keys(sh).length) im.shots = sh; else delete im.shots;
+  if (gid === MAIN_GID) delete im.pidx;   // 예전 표기는 정리한다
+}
+// 첨부 내역 한 줄: "'블랙' 2/3장 · '핑크' 1장"
+function slotAttachText(im) {
+  const gs = slotShotGroups(im);
+  if (!gs.length || !gs[0].refs.length) return "상품샷 없음";
+  const mainG = variantGroups.find((v) => v.refs === dpProductRefs());
+  const byDefault = !slotOptionGroups(im);
+  return gs.map((g) => {
+    const n = groupRefs(g).length;
+    const label = g.name ? "'" + g.name + "' " : (byDefault && mainG ? "주상품 '" + optName(mainG) + "' " : "상품샷 ");
+    return label + n + "장" + (g.pick && n < g.refs.length ? " (" + g.pick.join(",") + "번)" : "");
+  }).join(" + ") + (byDefault && filledVariants().length ? " (기본)" : "");
+}
+// 칸별 사진 고르기 UI: 옵션 이름 옆에 그 옵션의 사진 썸네일. 옵션 단위·사진 단위로 고른다.
+function shotPicker(im, onChange, disabled) {
+  const wrap = document.createElement("span");
+  wrap.className = "sec-opts sec-shots";
+  const fv = filledVariants();
+  const groups = fv.length ? fv.map((g) => ({ id: g.id, name: optName(g), refs: g.refs }))
+    : [{ id: MAIN_GID, name: "", refs: dpProductRefs() }];
+  if (!groups.length || !groups[0].refs.length) return wrap;
+  const chosen = new Set(im.vids || []);
+  const state = slotShotGroups(im);
+  // 아무 옵션도 안 고른 칸은 주상품이 기본으로 들어간다 — 그 묶음을 흐린 체크로 표시해 준다.
+  const mainG = variantGroups.find((v) => v.refs === dpProductRefs());
+  const impliedId = !chosen.size && fv.length ? (mainG ? mainG.id : null) : null;
+  groups.forEach((g) => {
+    const implied = g.id === impliedId;
+    const on = fv.length ? chosen.has(g.id) : true;
+    const cur = state.find((x) => x.id === g.id);
+    const pick = cur ? cur.pick : null;
+    const box = document.createElement("span");
+    box.className = "shotgrp" + (on ? " on" : "") + (implied ? " implied" : "");
+    if (g.name) {
+      if (implied) {
+        const tag = document.createElement("em");
+        tag.textContent = "기본";
+        box.appendChild(tag);
+      }
+      const chip = document.createElement("label");
+      chip.className = "grpname";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = on; cb.indeterminate = implied; cb.disabled = disabled;
+      cb.title = implied ? "이 칸은 옵션을 따로 고르지 않아 주상품인 이 옵션이 들어갑니다 (기본). 눌러서 직접 고를 수 있어요." : "이 옵션을 이 이미지에 넣기";
+      cb.onchange = () => {
+        const set = new Set(im.vids || []);
+        if (cb.checked) set.add(g.id); else set.delete(g.id);
+        im.vids = fv.map((x) => x.id).filter((id) => set.has(id));
+        if (!im.vids.length) delete im.vids;
+        onChange();
+      };
+      chip.appendChild(cb); chip.appendChild(document.createTextNode(g.name));
+      box.appendChild(chip);
+    }
+    g.refs.forEach((f, n) => {
+      const l = document.createElement("label");
+      l.title = (g.name ? "'" + g.name + "' " : "") + "사진 " + (n + 1);
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.disabled = disabled;
+      cb.checked = on && (!pick || pick.includes(n + 1));
+      cb.indeterminate = implied;
+      cb.onchange = () => {
+        if (fv.length && !chosen.has(g.id)) {
+          // 꺼져 있던 옵션의 사진을 누르면, 그 옵션을 켜고 이 사진만 고른다
+          const set = new Set(im.vids || []); set.add(g.id);
+          im.vids = fv.map((x) => x.id).filter((id) => set.has(id));
+          setSlotShots(im, g.id, [n + 1], g.refs.length);
+          onChange(); return;
+        }
+        const base = pick || g.refs.map((_, i) => i + 1);
+        const next = cb.checked ? [...new Set(base.concat(n + 1))] : base.filter((x) => x !== n + 1);
+        if (!next.length && fv.length) {
+          // 마지막 한 장을 끄면 이 옵션 자체를 뺀다
+          const set = new Set(im.vids || []); set.delete(g.id);
+          im.vids = fv.map((x) => x.id).filter((id) => set.has(id));
+          if (!im.vids.length) delete im.vids;
+        }
+        setSlotShots(im, g.id, next, g.refs.length);
+        onChange();
+      };
+      const th = document.createElement("img");
+      th.src = f.url; th.alt = "";
+      l.appendChild(cb); l.appendChild(th);
+      box.appendChild(l);
+    });
+    wrap.appendChild(box);
+  });
+  if (fv.length && !(im.vids || []).length) {
+    const em = document.createElement("em");
+    em.textContent = "안 고르면 주상품 전부";
+    wrap.appendChild(em);
+  }
+  return wrap;
 }
 // 첨부 순서대로 "image 1-2 = '블랙' 옵션" 매핑과, 옵션끼리 섞지 말라는 지시.
 function slotOptionLine(im) {
-  const gs = slotOptionGroups(im);
+  const gs = slotOptionGroups(im) ? slotShotGroups(im) : null;
   if (!gs) return "";
   let i = 1;
-  const map = gs.map((g) => { const r = imgRange(i, i + g.refs.length - 1); i += g.refs.length; return r + " = the '" + optName(g) + "' option"; });
+  const map = gs.map((g) => { const n = groupRefs(g).length; const r = imgRange(i, i + n - 1); i += n; return r + " = the '" + g.name + "' option"; });
   if (gs.length === 1) {
-    return "this image shows the '" + optName(gs[0]) + "' option of the product (" + map[0] + "); its colour, pattern, material, and finish come ONLY from " +
+    return "this image shows the '" + gs[0].name + "' option of the product (" + map[0] + "); its colour, pattern, material, and finish come ONLY from " +
       "its photo(s); " + OPTION_COLOR_OVERRIDE;
   }
   return "options in this image: " + map.join("; ") + ". Show all " + gs.length + " options together in this one image (arranged as the scene direction says), " +
@@ -5842,9 +6161,14 @@ function autoSectionPrompt(s, k) {
           "render the product itself with full detail" : ""); })(),
     s.images.length > 1 ? "this is image " + ((k || 0) + 1) + " of " + s.images.length + " shown together in one section; keep it clearly different from the others in framing and angle, but identical in lighting, background family and mood so they sit side by side" : "",
     !white && st.visual ? "shared visual style for every image on this product detail page (it wins over any conflicting style line above): " + st.visual : "",
-    anchored ? "the attached style reference is an image already made for this same detail page" + (sameSec ? ", shown next to this one in the same section" : "") +
-      ": match its color grading, color temperature, lighting and background family so the two read as one photo shoot, " +
-      "but this must be a clearly different photo — a different composition, camera angle and subject framing; never reproduce the reference image" : "",
+    anchored ? (im.matchMode === "scene"
+      ? "the attached style reference is an image already made for this same detail page" + (sameSec ? ", shown next to this one in the same section" : "") +
+        ": this photo continues the SAME scene. Keep the same place, surface, background, props, styling, time of day and lighting as the reference — " +
+        "the viewer should read them as two frames from one shoot in one location. " +
+        "Only the camera changes: a different angle, distance or framing of the product within that same scene; never reproduce the reference image itself."
+      : "the attached style reference is an image already made for this same detail page" + (sameSec ? ", shown next to this one in the same section" : "") +
+        ": match its color grading, color temperature, lighting and background family so the two read as one photo shoot, " +
+        "but this must be a clearly different photo — a different composition, camera angle and subject framing; never reproduce the reference image") : "",
     dplan.extra ? "seller's request for this detail page (applies to every image): " + dplan.extra : "",
     dplan.product_notes && nProduct ? "critical product details to keep exactly as in the product photo: " + dplan.product_notes : "",
     // 기획을 사진 없이 돌렸거나 옵션 사진만 썼으면 product_views가 비어 각도 제약(viewsLine)이
@@ -5874,7 +6198,42 @@ const OPTION_COLOR_OVERRIDE = "ignore every colour, tone, pattern, and material 
 function optionPrompt(s, k) {
   return s.items[k].custom || autoOptionPrompt(s, k);
 }
-const optionRefCount = (it) => { const g = variantGroups.find((v) => v.id === it.vid); return g ? g.refs.length : 1; };
+// 옵션 이미지에 쓸 그 옵션의 사진: it.pick(1부터)이 있으면 그것만, 없으면 전부.
+function optItemGroup(it) { return variantGroups.find((v) => v.id === it.vid) || null; }
+function optItemRefs(it) {
+  const g = optItemGroup(it);
+  if (!g) return [];
+  const pick = (it.pick || []).filter((n) => n >= 1 && n <= g.refs.length);
+  return pick.length ? pick.map((n) => g.refs[n - 1]) : g.refs;
+}
+const optionRefCount = (it) => Math.max(1, optItemRefs(it).length);
+// 사진만 고르는 선택기 (옵션 이미지용). set(pick) 호출 뒤 화면 갱신은 호출 쪽에서.
+function photoPicker(refs, pick, set, disabled) {
+  const wrap = document.createElement("span");
+  wrap.className = "sec-opts sec-shots";
+  if (refs.length < 2) return wrap;
+  const box = document.createElement("span");
+  box.className = "shotgrp on";
+  box.appendChild(document.createTextNode("사진"));
+  refs.forEach((f, n) => {
+    const l = document.createElement("label");
+    l.title = "사진 " + (n + 1);
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.disabled = disabled;
+    cb.checked = !pick.length || pick.includes(n + 1);
+    cb.onchange = () => {
+      const base = pick.length ? pick : refs.map((_, i) => i + 1);
+      const next = cb.checked ? [...new Set(base.concat(n + 1))].sort((a, b) => a - b) : base.filter((x) => x !== n + 1);
+      set(next.length && next.length < refs.length ? next : []);
+    };
+    const th = document.createElement("img");
+    th.src = f.url; th.alt = "";
+    l.appendChild(cb); l.appendChild(th);
+    box.appendChild(l);
+  });
+  wrap.appendChild(box);
+  return wrap;
+}
 // 이미 만든 다른 옵션 컷 하나(앞 옵션 우선)를 구도 기준으로 함께 보낸다 — 제품 크기·각도·여백을 맞추려고.
 // 직접 고친 프롬프트는 이 참조 이미지를 모르므로 보내지 않는다.
 function optionAnchor(s, k) {
@@ -5958,10 +6317,13 @@ async function genSectionImage(s, editInstr, slotArg) {
     const label = "상세 · " + DP_TYPES[s.type] + (s.images.length > 1 ? " " + (slot + 1) + "/" + s.images.length : "");
     let done = null;
     const url = await genImageUrl(promptText, refs, im.ratio, label + (editInstr ? " 수정" : ""), slotSizeHint(s, slot),
-      editInstr ? null : { nProduct: slotProductRefs(im).length, groups: slotQaGroups(im), say: (m) => setDStatus(m), onDone: (r) => { done = r; },
-        shouldStop: () => dpRun.stop });
+      editInstr ? null : { nProduct: slotProductRefs(im).length, groups: slotQaGroups(im), pass: qaPassFor(im.scenario),
+        say: (m) => setDStatus(m), onDone: (r) => { done = r; }, shouldStop: () => dpRun.stop });
     dimgs[key] = url;
     im.prompt = done ? done.prompt : promptText;
+    // 검사 결과를 칸에 남긴다 — 상태 줄은 금방 다른 메시지로 덮인다.
+    if (done && done.qa) im.qa = { score: done.qa.score, failed: !!done.failed, pass: done.pass, note: qaNote(done) };
+    else delete im.qa;
     const qn = qaNote(done);
     if (qn) setDStatus(label + " — " + qn, done.failed ? "err" : "ok");
     saveDetailSoon();
@@ -5970,6 +6332,41 @@ async function genSectionImage(s, editInstr, slotArg) {
     dbusy.delete(key);
     renderDetail();
   }
+}
+
+// 이미 만든 초안용: 이미지 지시문에 박힌 색·옵션 표현을 빼고 같은 장면을 그대로 다시 쓴다.
+// (새 기획부터는 기획 모델이 처음부터 색 없이 쓰도록 규칙을 바꿔 뒀다.)
+async function dpNeutralizeDirection(s, k) {
+  const im = s.images[k];
+  if (!im || !im.direction.trim()) throw new Error("이 자리에는 이미지 지시가 비어 있습니다.");
+  const apiKey = $("apikey").value.trim();
+  if (!apiKey && !useAnthropic()) throw new Error("API 키를 입력하세요.");
+  const gs = slotOptionGroups(im);
+  const names = filledVariants().map((g) => optName(g));
+  const ask = [
+    "다음은 상세페이지 이미지 한 장의 생성 지시문(영어)이다.",
+    "이 상품은 옵션(색상/종류)이 여러 개다: " + names.join(", ") + ".",
+    gs ? "이 자리는 '" + gs.map((g) => g.name).join("', '") + "' 옵션을 보여준다." : "이 자리는 옵션을 따로 고르지 않았다.",
+    "고칠 점 1: 상품 자체의 색·패턴을 가리키는 표현과 다른 옵션 이름을 빼라. 상품 색은 생성할 때 첨부하는 사진에서 오므로 글로 적을 필요가 없다.",
+    "고칠 점 2: 배경·바닥·소품·조명·무드의 색은 그대로 두되, 이 자리의 옵션과 어울리지 않으면 어울리게 조정해라. " +
+      "상품 색과 맞춰야 하는 서술은 \"a backdrop that complements the product's own colour as seen in the photo\"처럼 관계로 바꿔라.",
+    "구도·소품·장면 자체는 그대로 두고, 영어로 자연스럽게 다시 써라. 새 내용을 지어내지 마라.",
+    "",
+    "[지시문]",
+    im.direction,
+    "",
+    'JSON만 출력해라: {"direction": "<고친 영어 지시문>"}',
+  ].join("\n");
+  const { backend, model } = planModel();
+  const raw = await callTextModel(ask, apiKey, backend, model, [], "이미지 지시 색 빼기");
+  const j = parseJsonLoose(raw);
+  const out = j && typeof j.direction === "string" ? j.direction.trim() : "";
+  if (!out) throw new Error("고친 지시문을 받지 못했습니다.");
+  im.direction = out;
+  delete im.custom;   // 직접 고친 프롬프트가 있으면 새 지시가 묻히므로 자동 프롬프트로 되돌린다
+  saveDetailSoon();
+  renderDetail();
+  return out;
 }
 
 // Slot 0 first, so the rest can follow its look.
@@ -5987,7 +6384,7 @@ async function genOptionImage(s, k) {
   const g = variantGroups.find((v) => v.id === it.vid);
   if (!g || !g.refs.length) throw new Error("옵션 '" + it.title + "'의 사진이 없습니다. 왼쪽 상품샷에 넣고 옵션 이름을 적어주세요.");
   const promptText = optionPrompt(s, k);
-  const refs = g.refs.slice();
+  const refs = optItemRefs(it).slice();
   const anchor = optionAnchor(s, k);
   if (anchor) refs.push(anchor);
   dbusy.add(key);
@@ -5995,9 +6392,11 @@ async function genOptionImage(s, k) {
   try {
     let done = null;
     const url = await genImageUrl(promptText, refs, "1:1", "상세 · 옵션 · " + it.title, null,
-      { nProduct: g.refs.length, say: (m) => setDStatus(m), onDone: (r) => { done = r; }, shouldStop: () => dpRun.stop });
+      { nProduct: optItemRefs(it).length, pass: qaPassFor("hero-image"), say: (m) => setDStatus(m), onDone: (r) => { done = r; }, shouldStop: () => dpRun.stop });
     dimgs[key] = url;
     it.prompt = done ? done.prompt : promptText;
+    if (done && done.qa) it.qa = { score: done.qa.score, failed: !!done.failed, pass: done.pass, note: qaNote(done) };
+    else delete it.qa;
     const qn = qaNote(done);
     if (qn) setDStatus("옵션 '" + it.title + "' — " + qn, done.failed ? "err" : "ok");
     saveDetailSoon();
@@ -6373,7 +6772,7 @@ function ssPlanPrompt(o) {
     "- main: {scenario, variant, direction: 이미지 모델에 들어갈 영어 1~2문장 (배경, 조명, 카메라 각도·거리), request: 아래 설명 참고, reason: 추천 이유 한국어 한 문장}",
     "- extras: [{scenario, variant, title: 한국어 짧은 이름 (8자 이내, 예: 소재 디테일), direction: 영어 1~2문장 (장면, 배경 소재, 소품, 조명, 카메라 거리·각도, 사람 유무를 구체적으로), request: 아래 설명 참고, reason: 이 컷이 구매 결정에 주는 도움 한국어 한 문장}]",
     "- request: 이 컷을 만들 때 이미지 모델에 함께 보낼 추가 요청, 한국어 한 문장. 판매자가 읽고 바로 고칠 수 있게 쉬운 말로 쓴다. " +
-      "이 컷에서 특히 잘 보여야 할 부분이나 흔히 틀리는 점을 짚어라(예: 밑창 돌기가 또렷하게 보이게, 상품 색이 사진보다 밝아지지 않게). " +
+      "이 컷에서 특히 잘 보여야 할 부분이나 흔히 틀리는 점을 짚어라(상품 사진에서 확인되는 것만 — 예: 특정 부위가 또렷하게 보이게, 상품 색이 사진보다 밝아지지 않게). " +
       "상품 정보에 없는 사실·효능은 쓰지 마라.",
     "",
     "출력 예: {\"kind\":\"general\",\"product_en\":\"...\"," + (o.nImages ? "\"product_views\":[\"front\",\"side\"],\"product_notes\":\"...\"," : "") +
