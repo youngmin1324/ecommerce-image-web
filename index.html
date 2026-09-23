@@ -139,6 +139,8 @@ dialog.dlg::backdrop { background: rgba(0,0,0,0.45); }
 .sec-opts label { display: inline-flex; align-items: center; gap: 3px; color: var(--ink); cursor: pointer; }
 .sec-opts input { width: auto; margin: 0; }
 .sec-opts em { font-style: normal; opacity: .75; }
+.sec-shots img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
+.sec-shots label { gap: 4px; }
 .runbar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 10px;
   max-width: calc(100vw - 32px); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 13.5px; }
@@ -2679,27 +2681,40 @@ function qaRefsFor(gs) {
   });
   return { refs: refs.slice(0, Math.max(4, gs.length)), map };
 }
+// 한 번의 요청으로 검사하되, 옵션별 디테일을 나눠 적고 옵션마다 점수를 따로 받는다.
+// (옵션마다 요청을 나누면 더 꼼꼼하지만 요청 수가 옵션 수만큼 늘어난다.)
 function qaPrompt(gs, q, dets) {
-  const multi = gs.length > 1 || !!gs[0].name;
+  const multi = gs.length > 1;
+  const one = gs[0];
   return [
     "You are a strict e-commerce QA inspector.",
     multi
-      ? "Reference photos of the real product options: " + q.map.join("; ") + ". The LAST image is a generated marketing image that must show " +
-        (gs.length > 1 ? "exactly these options, each looking like its own reference photos." : "exactly this option.")
-      : imgRange(1, q.refs.length) + (q.refs.length > 1 ? " are reference photos" : " is a reference photo") + " of the real product. " +
-        "The LAST image is a generated marketing image that must show this exact same product.",
-    "Compare only the product" + (gs.length > 1 ? "s" : "") + " itself. Ignore background, props, people, lighting mood, camera angle, crop, " +
+      ? "Reference photos of the real product options: " + q.map.join("; ") + ". The LAST image is a generated marketing image that should show " +
+        "these " + gs.length + " options together."
+      : imgRange(1, q.refs.length) + (q.refs.length > 1 ? " are reference photos" : " is a reference photo") + " of the real " +
+        (one.name ? "'" + one.name + "' option of the product" : "product") + ". The LAST image is a generated marketing image that must show this exact same product.",
+    multi
+      ? "Judge each option SEPARATELY: for each one, find the item in the generated image that matches that option's own reference photos in colour and pattern, " +
+        "and compare it only with those photos. Never let one option's colours or details count against another."
+      : "",
+    "Compare only the product itself. Ignore background, props, people, lighting mood, camera angle, crop, " +
       "and any side of the product that is not visible in the generated image.",
-    "Check shape and proportions, the count and placement of parts, colours, material/texture/pattern, logos and text, hardware and stitching." +
-      (gs.length > 1 ? " Also check that every listed option appears, that no unlisted option appears, and that colours or details are not swapped or mixed between options." : ""),
-    dets.some((d) => d.length) ? "Key details: " + gs.map((g, i) => (g.name ? "'" + g.name + "': " : "") + (dets[i] || []).join("; ")).join(" | ") : "",
-    'Reply with JSON only: {"product_visible": true or false, "score": <0-100, where 100 = indistinguishable from the real product>, ' +
-      '"issues": ["<each concrete mismatch in English, e.g. the strap has two velcro tabs but the real one has one>"], ' +
-      '"issues_ko": ["<the same issues as short Korean phrases>"]}',
+    "Check shape and proportions, the count and placement of parts, colours, material/texture/pattern, logos and text, hardware and stitching.",
+    dets.some((d) => d.length)
+      ? "Key details, per option — check each one against its own list only:\n" +
+        gs.map((g, i) => "- " + (g.name ? "'" + g.name + "': " : "") + ((dets[i] || []).join("; ") || "(see its photos)")).join("\n")
+      : "",
+    'Reply with JSON only: {"results": [' + gs.map((g) => '{"option": "' + (g.name || "product") + '", "found": true or false, ' +
+      '"score": <0-100, where 100 = indistinguishable from its reference photos>, ' +
+      '"issues": ["<each concrete mismatch in English>"], "issues_ko": ["<the same issues as short Korean phrases>"]}').join(", ") + ']}',
+    'Give one entry per option, in that order. Set "found": false when that option does not appear in the generated image at all, ' +
+      "or when you cannot tell which item it is — do not guess; leave its score at 0 and its issues empty.",
     "Give 85 or more only if a customer would accept it as the same product; list every mismatch you see, and none if there are none.",
   ].filter(Boolean).join("\n");
 }
-async function qaCheck(gs, url, dets) {
+// 한 번 불러서 옵션별 결과를 받는다. 점수는 가장 낮은 옵션 기준 (한 옵션만 틀려도 못 쓰는 컷이라).
+async function qaCheck(gs, url, dets, say) {
+  const multi = gs.length > 1;
   const q = qaRefsFor(gs);
   const gen = Object.assign({ name: "generated", url }, dataUrlToPart(url));
   const raw = await callTextModel(qaPrompt(gs, q, dets), $("apikey").value.trim(), $("backend").value, qaTextModel(),
@@ -2707,8 +2722,26 @@ async function qaCheck(gs, url, dets) {
   const j = parseJsonLoose(raw);
   if (!j) return null;
   const list = (x) => (Array.isArray(x) ? x : []).map((v) => String(v).trim()).filter(Boolean);
-  return { visible: j.product_visible !== false, score: Math.max(0, Math.min(100, Math.round(Number(j.score) || 0))),
-    issues: list(j.issues), issuesKo: list(j.issues_ko) };
+  const rows = Array.isArray(j.results) && j.results.length ? j.results : [j];   // 배열을 안 주면 통째로 한 건으로 본다
+  const per = gs.map((g, i) => {
+    const r = rows.find((x) => x && String(x.option || "").trim() === g.name) || rows[i] || rows[0] || {};
+    return { name: g.name, found: r.found !== false && r.product_visible !== false,
+      score: Math.max(0, Math.min(100, Math.round(Number(r.score) || 0))),
+      issues: list(r.issues), issuesKo: list(r.issues_ko) };
+  });
+  const judged = per.filter((p) => p.found);
+  const label = (p, t) => (multi && p.name ? "[" + p.name + "] " + t : t);
+  const out = {
+    visible: judged.length > 0,
+    score: judged.length ? Math.min(...judged.map((p) => p.score)) : 0,
+    issues: [].concat(...judged.map((p) => p.issues.map((t) => label(p, t)))),
+    issuesKo: [].concat(...judged.map((p) => (p.issuesKo.length ? p.issuesKo : p.issues).map((t) => label(p, t)))),
+    per,
+  };
+  // 못 찾은 옵션 = 빠졌거나 어느 것인지 구분이 안 된 것. 자동 수정하지 않고 사람이 보게 남긴다.
+  const miss = per.filter((p) => !p.found).map((p) => p.name);
+  if (multi && miss.length) out.warn = "생성 이미지에서 " + miss.map((n) => "'" + n + "'").join(", ") + " 옵션을 찾지 못했습니다 (빠졌거나 어느 것인지 구분이 안 됨)";
+  return out;
 }
 // 수정 요청은 image 1 = 고칠 이미지, 그 뒤로 상품샷. 매핑 번호를 1칸씩 민다.
 function fixPrompt(gs, q, issues, dets) {
@@ -2751,7 +2784,7 @@ async function genChecked(promptText, refs, ratio, tag, size, opts) {
   for (let attempt = 0; ; attempt++) {
     say("상품 일치 검사 중…" + (attempt ? " (자동 수정 " + attempt + "회 후)" : ""));
     let qa = null;
-    try { qa = await qaCheck(gs, url, dets); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
+    try { qa = await qaCheck(gs, url, dets, say); } catch (e) { return { url, prompt, qaError: String(e.message || e) }; }
     if (!qa) return { url, prompt };
     if (!best || qa.score > best.qa.score) best = { url, qa };
     if (!qa.visible || qa.score >= QA_PASS || !qa.issues.length) return { url, prompt, qa, fixed: attempt };
@@ -2769,7 +2802,9 @@ function qaPlanText(prod) {
   if (!prod || !prod.length) return "생성 후 일치 검사: 상품샷이 없어 건너뜀";
   if (!$("qaCheck").checked) return "생성 후 일치 검사: 꺼짐 (공통 설정에서 켤 수 있어요)";
   const retry = parseInt($("qaRetry").value, 10) || 0;
-  return "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 " +
+  const gs = asGroups(prod);
+  const multi = gs.length > 1 ? "옵션 " + gs.length + "개를 한 번에 검사해 옵션별로 점수를 받고, 가장 낮은 점수를 씁니다. " : "";
+  return multi + "생성 후: 원본 상품샷과 비교해 일치 점수를 매기고, " + QA_PASS + "점 미만이면 " +
     (retry ? "지적된 부분만 원본처럼 고치는 수정 요청을 최대 " + retry + "회 보냅니다 (구도·배경 유지). 끝까지 미달이면 가장 높은 점수 컷을 쓰고 경고합니다."
       : "경고만 합니다 (자동 수정 꺼짐).");
 }
@@ -2778,7 +2813,9 @@ function qaPromptsPreview(prodOrGroups) {
   if (!gs.length) return "";
   const dets = gs.map((g) => specDone.get(specKey(g.refs)) || []);
   const q = qaRefsFor(gs);
-  return "[일치 검사 프롬프트 — 텍스트 모델에 상품샷 " + q.refs.length + "장 + 생성 이미지와 함께 보냄]\n" + qaPrompt(gs, q, dets) +
+  const multi = gs.length > 1;
+  return (multi ? "옵션 " + gs.length + "개를 한 번의 요청으로 검사하고, 옵션마다 점수를 따로 받습니다. 점수는 가장 낮은 옵션 기준입니다.\n\n" : "") +
+    "[일치 검사 프롬프트 — 텍스트 모델에 상품샷 " + q.refs.length + "장 + 생성 이미지와 함께 보냄]\n" + qaPrompt(gs, q, dets) +
     "\n\n[자동 수정 프롬프트 — 불일치일 때 생성 이미지 + 상품샷과 함께 보냄. <issues>는 검사 결과로 채워짐]\n" +
     fixPrompt(gs, q, ["<issues>"], dets);
 }
@@ -2786,10 +2823,12 @@ function qaPromptsPreview(prodOrGroups) {
 function qaNote(r) {
   if (!r || !r.qa) return r && r.qaError ? "일치 검사 실패: " + r.qaError : "";
   const q = r.qa;
-  if (!q.visible) return "일치 검사: 상품이 잘 안 보이는 컷이라 건너뜀";
+  const warn = q.warn ? " · ⚠ " + q.warn : "";
+  if (!q.visible) return "일치 검사: 상품을 확인하지 못해 건너뜀" + warn;
   const iss = (q.issuesKo.length ? q.issuesKo : q.issues).join(", ");
-  if (r.failed) return "⚠ 상품 불일치 남음 (" + q.score + "점): " + iss + " — 다시 생성하거나 수정 요청을 해보세요";
-  return "상품 일치 " + q.score + "점" + (r.fixed ? " (자동 수정 " + r.fixed + "회)" : "");
+  const each = q.per && q.per.length > 1 ? " (" + q.per.map((p) => "'" + p.name + "' " + (p.found ? p.score + "점" : "못 찾음")).join(" · ") + ")" : "";
+  if (r.failed) return "⚠ 상품 불일치 남음 (" + q.score + "점)" + each + ": " + iss + " — 다시 생성하거나 수정 요청을 해보세요" + warn;
+  return "상품 일치 " + q.score + "점" + each + (r.fixed ? " (자동 수정 " + r.fixed + "회)" : "") + warn;
 }
 
 // =====================================================================
@@ -4302,7 +4341,8 @@ function skillRequest(name, info, tone, count, nImages, optionNames, extra, type
   const opts = optionNames && optionNames.length ? optionNames : null;
   const photoLines = [];
   if (nImages) photoLines.push("- The first " + nImages + " attached image(s) are product shots of the real " + (mainName ? "main product — the '" + mainName + "' option" : "product") +
-    " (use them for Reference Fidelity).");
+    " (use them for Reference Fidelity). They are numbered: product shot 1" + (nImages > 1 ? " to " + nImages : "") +
+    ". Each module's photo can be generated from just the product shots that show what that module needs, so note in each module's Visual which product shot number(s) it relies on.");
   (optPhotos || []).forEach((o) => photoLines.push("- Image " + o.index + " is the '" + o.name + "' option of the same product — use it to know exactly how that option looks " +
     "(colour, pattern, finish) when a module shows it."));
   return [
@@ -4402,11 +4442,16 @@ function editorRules(nImages, optionNames, mainName, optPhotos) {
     ...DP_SCN_LINES,
     "- variant는 선택이다. 위 목록에서 그 scenario 뒤 [ ] 안에 적힌 키 중 하나만 쓸 수 있고, 어울리는 것이 없으면 넣지 마라.",
     "- ratio는 \"4:5\", \"1:1\", \"3:4\", \"4:3\", \"16:9\" 중 카드의 구도에 맞는 것 (hero는 4:5 권장).",
+    ...(nImages > 1 ? [
+      "- photos (선택): 이 사진을 만들 때 쓸 주상품 상품샷 번호 배열 (1~" + nImages + ", 첨부 순서). 여러 장 고를 수 있다.",
+      "  그 컷에 필요한 면·부분이 보이는 사진만 골라라 — 예: 밑창 접사 컷은 밑창이 보이는 사진, 착용컷은 정면 사진. 여러 면이 필요하면 여러 개 적어라.",
+      "  어느 사진이 맞는지 확신이 없거나 제품 전체 모습이 필요하면 아예 빼라(비우면 주상품 상품샷 전부를 쓴다). 고른 사진에 없는 면은 모델이 지어내지 못한다는 걸 기억해라.",
+    ] : []),
     ...(opts ? [
       "- options: 이 사진에 나올 옵션 이름 배열. 고를 수 있는 이름: " + opts.map((o) => "\"" + o + "\"").join(", ") + " (글자 그대로).",
       "  " + (mainName ? "기본은 주상품 [\"" + mainName + "\"] 하나." : "주상품만 나오면 빈 배열 []로 둔다.") +
         " 카드의 화면이 다른 옵션을 보여주면 그 옵션을, 여러 색·종류를 한 장에 함께 보여주면(컬러 라인업, 옵션 비교 등) 그 옵션들을 모두 적어라.",
-      "  사진마다 따로 정한다 — 선택한 옵션의 사진이 이미지 생성에 첨부되고, 고르지 않은 옵션은 그 사진에 나오지 않는다.",
+      "  사진마다 따로 정한다 — 선택한 옵션의 사진이 이미지 생성에 첨부되고, 고르지 않은 옵션은 그 사진에 나오지 않는다. (options를 적으면 photos는 무시된다: 그 옵션의 사진을 쓴다.)",
     ] : []),
     "- match (선택): 이 사진이 앞의 특정 사진과 같은 촬영의 한 세트로 보여야 할 때만, 그 사진을 모듈 번호로 적는다(\"M3\" = M3의 첫 장, \"M3-2\" = M3의 둘째 장).",
     "  앞 사진이 참고 이미지로 함께 들어가 색감·조명·배경 계열을 맞춘다. 판단 기준: 같은 섹션에 나란히 놓이는 2·3번째 사진, 앞 모듈의 장면·모델·공간을 그대로 이어 가는 사진처럼",
@@ -4498,6 +4543,10 @@ function normalizePlan(j) {
           note: str(im.note),
           direction: str(im.direction),
         };
+        // 이 칸에 쓸 주상품 상품샷 번호(1부터). 저장된 초안은 pidx, 기획 모델은 photos로 준다.
+        const ph = Array.isArray(im.pidx) ? im.pidx : (Array.isArray(im.photos) ? im.photos : []);
+        const pidx = [...new Set(ph.map((v) => parseInt(v, 10)).filter((v) => v >= 1))].sort((a, b) => a - b);
+        if (pidx.length) one.pidx = pidx;
         // 이 칸에 나올 옵션(옵션 그룹 id). 저장된 초안은 vids, 기획 모델은 options(이름)로 준다.
         if (Array.isArray(im.vids)) {
           const ids = im.vids.map(str).filter(Boolean);
@@ -4666,7 +4715,7 @@ function planPhotos() {
   const groups = filledVariants();
   const mainRefs = mainProductRefs();
   const mg = groups.find((g) => g.refs === mainRefs);
-  const images = mainRefs.slice(0, 3);
+  const images = mainRefs.slice(0, 5);
   const nMain = images.length;
   const optPhotos = [];
   groups.filter((g) => g.refs !== mainRefs).slice(0, 5).forEach((g) => {
@@ -4973,7 +5022,8 @@ async function reviewPrompts() {
       const parts = it
         ? [(g ? "'" + optName(g) + "' 사진 " + g.refs.length + "장" : "옵션 사진 없음"), optionAnchor(s, job.k) ? "구도 기준 컷 1장" : ""]
         : [qaGroups ? qaGroups.map((x) => "'" + x.name + "' " + x.refs.length + "장").join(" + ")
-            : (prod.length ? (mainG ? "주상품 '" + optName(mainG) + "' " : "상품샷 ") + prod.length + "장" : "상품샷 없음"),
+            : (prod.length ? (mainG ? "주상품 '" + optName(mainG) + "' " : "상품샷 ") + prod.length + "장" +
+                ((s.images[slot].pidx || []).length ? " (" + s.images[slot].pidx.join(", ") + "번)" : "") : "상품샷 없음"),
           dpStyleRefs(s, slot).length ? "톤 참조 1장" : ""];
       att.textContent = "첨부: " + parts.filter(Boolean).join(" · ");
       const ta = document.createElement("textarea");
@@ -5347,6 +5397,37 @@ function renderTools(s, i) {
       r.appendChild(scn);
       if (vkeys.length) r.appendChild(vsel);
       if (msel.options.length) r.appendChild(msel);
+      // 이 칸에 쓸 주상품 상품샷 고르기 (옵션을 고른 칸은 그 옵션 사진을 쓰므로 숨긴다).
+      const mainShots = dpProductRefs();
+      if (mainShots.length > 1 && !slotOptionGroups(im)) {
+        const pbox = document.createElement("span");
+        pbox.className = "sec-opts sec-shots";
+        pbox.title = "이 이미지를 만들 때 첨부할 상품샷. 아무것도 안 고르면 전부 씁니다.";
+        pbox.appendChild(document.createTextNode("사진"));
+        mainShots.forEach((f, n) => {
+          const lab = document.createElement("label");
+          const cb = document.createElement("input");
+          cb.type = "checkbox"; cb.checked = (im.pidx || []).includes(n + 1); cb.disabled = busy;
+          cb.onchange = () => {
+            const on = new Set(im.pidx || []);
+            if (cb.checked) on.add(n + 1); else on.delete(n + 1);
+            im.pidx = mainShots.map((_, x) => x + 1).filter((x) => on.has(x));
+            if (!im.pidx.length || im.pidx.length === mainShots.length) delete im.pidx;
+            saveDetailSoon(); renderDetail();
+          };
+          const th = document.createElement("img");
+          th.src = f.url; th.alt = "";
+          lab.title = "상품샷 " + (n + 1);
+          lab.appendChild(cb); lab.appendChild(th);
+          pbox.appendChild(lab);
+        });
+        if (!(im.pidx || []).length) {
+          const d = document.createElement("em");
+          d.textContent = "기본: 전부(" + mainShots.length + "장)";
+          pbox.appendChild(d);
+        }
+        r.appendChild(pbox);
+      }
       const fv = filledVariants();
       if (fv.length) {
         const box = document.createElement("span");
@@ -5692,10 +5773,13 @@ function slotOptionGroups(im) {
   return gs.length ? gs : null;
 }
 const optName = (g) => g.name.trim() || "옵션";
-// 이 칸에 첨부할 상품샷: 고른 옵션들의 사진을 이어 붙인 것, 없으면 주상품 사진.
+// 이 칸에 첨부할 상품샷: 고른 옵션들의 사진, 없으면 주상품 사진(칸에서 고른 번호만, 없으면 전부).
 function slotProductRefs(im) {
   const gs = slotOptionGroups(im);
-  return gs ? [].concat(...gs.map((g) => g.refs)) : dpProductRefs();
+  if (gs) return [].concat(...gs.map((g) => g.refs));
+  const all = dpProductRefs();
+  const pick = (im && im.pidx ? im.pidx : []).map((n) => all[n - 1]).filter(Boolean);
+  return pick.length ? pick : all;
 }
 // 디테일 추출·일치 검사용 묶음 (옵션을 골랐을 때만).
 function slotQaGroups(im) {
